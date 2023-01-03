@@ -331,7 +331,6 @@ src/uhh-sp
 .tests
 .scorebased*
 ,**.png
-*.png
 ,*
 jupyter
 evaluate_metrics.py
