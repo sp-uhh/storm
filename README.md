@@ -70,8 +70,8 @@ Please check the script for other options
 
 We kindly ask you to cite our papers in your publication when using any of our research or code:
 ```bib
-@article{lemercier2022analysing,
-  title={StoRM: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation},
+@article{lemercier2022storm,
+  title={{StoRM}: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation},
   author={Lemercier, Jean-Marie and Richter, Julius and Welker, Simon and Gerkmann, Timo},
   journal={arXiv preprint arXiv:2212.11851},
   year={2022}
