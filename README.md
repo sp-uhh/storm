@@ -1,6 +1,6 @@
 # StoRM: A Stochastic Regeneration Model for Speech Enhancement and Dereverberation
 
-<img src="https://raw.githubusercontent.com/sp-uhh/storm/main/inference.png" width="500" alt="StoRM inference process on a spectrogram. A predictive model is first used to get a estimate of the clean speech, with some possible distortions and resiudla noise. The diffusion generative model then uses this estimate as the initial point for a reverse process learns to generate clean speech in an iterative fashion starting from the corrupted signal xT.">
+<img src="https://raw.githubusercontent.com/sp-uhh/storm/master/inference.png" width="500" alt="StoRM inference process on a spectrogram. A predictive model is first used to get a estimate of the clean speech, with some possible distortions and resiudla noise. The diffusion generative model then uses this estimate as the initial point for a reverse process learns to generate clean speech in an iterative fashion starting from the corrupted signal xT.">
 
 This repository contains the official PyTorch implementation for the paper:
 
