@@ -39,8 +39,6 @@ class Specs(Dataset):
 		self.return_time = return_time
 		if format in ["wsj0", "vctk"]:
 			dic_correspondence_subsets = {"train": "tr", "valid": "cv", "test": "tt"}
-			# self.clean_files = sorted(glob(join(data_dir, subset) + '/clean/*.wav'))
-			# self.noisy_files = sorted(glob(join(data_dir, subset) + '/noisy/*.wav'))
 			self.clean_files = sorted(glob(join(data_dir, dic_correspondence_subsets[subset]) + '/clean/*.wav'))
 			self.noisy_files = sorted(glob(join(data_dir, dic_correspondence_subsets[subset]) + '/noisy/*.wav'))
 		elif format == "voicebank":

@@ -12,7 +12,7 @@ import torch
 from sgmse.backbones.shared import BackboneRegistry
 from sgmse.data_module import SpecsDataModule
 from sgmse.sdes import SDERegistry
-from sgmse.model import ScoreModel, DiscriminativeModel, ScoreRefinerModel
+from sgmse.model import ScoreModel, DiscriminativeModel, StochasticRegenerationModel
 
 from pytorch_lightning.callbacks import TQDMProgressBar, ModelCheckpoint
 
@@ -30,7 +30,12 @@ if __name__ == '__main__':
 	base_parser = ArgumentParser(add_help=False)
 	parser = ArgumentParser()
 	for parser_ in (base_parser, parser):
-		parser_.add_argument("--mode", default="refine", choices=["score-only", "denoiser-only", "refine-p", "refine-j", "refine-p+j", "regen-p", "regen-j", "regen-p+j"])
+		parser_.add_argument("--mode", default="refine", choices=["score-only", "denoiser-only", "regen-freeze-denoiser", "regen-joint-training"],
+			help="score-only calls the ScoreModel class, \
+				  denoiser-only calls the DiscriminativeModel class, \
+				  regen-... calls the StochasticRegenerationModel class with the following options: \
+				  	- regen-freeze-denoiser will freeze the denoiser, make sure to call a pretrained model \
+					- regen-joint-training will not freeze the denoiser and consequently will train jointly the denoiser and score model")
 		parser_.add_argument("--backbone-denoiser", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
 		parser_.add_argument("--pretrained-denoiser", default=None, help="checkpoint for denoiser")
 		parser_.add_argument("--backbone-score", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
@@ -42,8 +47,8 @@ if __name__ == '__main__':
 		parser_.add_argument("--discriminatively", action="store_true", help="Train the backbone as a discriminative model instead")
 	temp_args, _ = base_parser.parse_known_args()
 
-	if "refine" in temp_args.mode or "regen" in temp_args.mode:
-		model_cls = ScoreRefinerModel
+	if "regen" in temp_args.mode:
+		model_cls = StochasticRegenerationModel
 	elif temp_args.mode == "score-only": 
 		model_cls = ScoreModel
 	elif temp_args.mode == "denoiser-only":
@@ -80,11 +85,11 @@ if __name__ == '__main__':
 	arg_groups = get_argparse_groups(parser)
 
 	# Initialize logger, trainer, model, datamodule
-	if "refine" in temp_args.mode or "regen" in temp_args.mode:
+	if "regen" in temp_args.mode:
 		model = model_cls(
 			mode=args.mode, backbone_denoiser=args.backbone_denoiser, backbone_score=args.backbone_score, sde=args.sde, data_module_cls=data_module_cls,
 			**{
-				**vars(arg_groups['ScoreRefinerModel']),
+				**vars(arg_groups['StochasticRegenerationModel']),
 				**vars(arg_groups['SDE']),
 				**vars(arg_groups['BackboneDenoiser']),
 				**vars(arg_groups['BackboneScore']),
@@ -138,7 +143,7 @@ if __name__ == '__main__':
 	early_stopping = EarlyStopping(monitor="valid_loss", mode="min", patience=50)
 	progress_bar = TQDMProgressBar(refresh_rate=50)
 	checkpoint_callback_loss = ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
-		every_n_epochs=50, save_last=True, save_top_k=4, monitor="valid_loss", filename='{epoch}')
+		save_last=True, save_top_k=1, monitor="valid_loss", filename='{epoch}')
 	checkpoint_callback_pesq = ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
 		save_top_k=1, monitor="ValidationPESQ", mode="max", filename='{epoch}-{pesq:.2f}')
 	callbacks = [progress_bar, checkpoint_callback_loss, checkpoint_callback_pesq, early_stopping]
@@ -146,7 +151,7 @@ if __name__ == '__main__':
 	# Initialize the Trainer and the DataModule
 	trainer = pl.Trainer.from_argparse_args(
 		arg_groups['pl.Trainer'],
-		strategy=DDPStrategy(find_unused_parameters=True), 
+		strategy=DDPStrategy(find_unused_parameters=False), 
 		logger=logger,
 		log_every_n_steps=10, num_sanity_val_steps=0, 
 		callbacks=callbacks,

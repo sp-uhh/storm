@@ -436,16 +436,16 @@ class DiscriminativeModel(ScoreModel):
 
 
 
-class ScoreRefinerModel(pl.LightningModule):
+class StochasticRegenerationModel(pl.LightningModule):
 	def __init__(self,
 		backbone_denoiser: str, backbone_score: str, sde: str,
 		lr: float = 1e-4, ema_decay: float = 0.999,
 		t_eps: float = 3e-2, reduce_mean: bool = False,
-		transform: str = 'none', input_y: bool = True, nolog: bool = False,
+		input_y: bool = True, nolog: bool = False,
 		num_eval_files: int = 50, weighting_exponent: float = 0.0, 
 		g_weighting_exponent: float = 0.0, output_std_exponent: float = -1.,
 		loss_type_denoiser: str = "none", loss_type_score: str = 'mse', data_module_cls = None, 
-		residue_in_stft = False, mode = "refine", condition = "post_denoiser",
+		residue_in_stft = False, mode = "regen-joint-training", condition = "both",
 		**kwargs
 	):
 		"""
@@ -464,7 +464,7 @@ class ScoreRefinerModel(pl.LightningModule):
 		super().__init__()
 		# Initialize Backbone DNN
 		self.input_y = input_y
-		### TMP: For now use the same kwargs for both networks, and simply mak a difference in the Backbone name (different sizes of NCSNpp) and the input channels
+		### TMP: For now use the same kwargs for both networks, and simply make a difference in the Backbone name (different sizes of NCSNpp) and the input channels
 		kwargs_denoiser = kwargs
 		kwargs_denoiser.update(input_channels=2)
 		kwargs_denoiser.update(discriminative=True)
@@ -524,9 +524,6 @@ class ScoreRefinerModel(pl.LightningModule):
 		parser.add_argument("--loss-type-denoiser", type=str, default="none", choices=("none", "mse", "mae", "sisdr", "mse_cplx+mag", "mse_time+mag"), help="The type of loss function to use.")
 		parser.add_argument("--loss-type-score", type=str, default="mse", choices=("none", "mse", "mae"), help="The type of loss function to use.")
 		parser.add_argument("--weighting-denoiser-to-score", type=float, default=0.5, help="a, as in L = a * L_denoiser + (1-a) * .")
-		# parser.add_argument("--condition-on-residue", action="store_true")
-		parser.add_argument("--residue-in-stft", action="store_true")
-		# parser.add_argument("--mode", default="refine", choices=["score-only", "denoiser-only", "refine", "regen"])
 		parser.add_argument("--condition", default="noisy", choices=["noisy", "post_denoiser", "both"])
 		parser.add_argument("--spatial-channels", type=int, default=1)
 		return parser
@@ -545,13 +542,6 @@ class ScoreRefinerModel(pl.LightningModule):
 			self.loss_fn_denoiser = lambda x, y: self._reduce_op(torch.square(torch.abs(x - y)))
 		elif self.loss_type_denoiser == "mae":
 			self.loss_fn_denoiser = lambda x, y: self._reduce_op(torch.abs(x - y))
-		elif self.loss_type_denoiser == "sisdr":
-			raise NotImplementedError
-			# self.loss_fn_denoiser = lambda x, y: - torch.mean(si_sdr_torch(self.to_audio(x.squeeze(1)), self.to_audio(y.squeeze(1))))
-		elif self.loss_type_denoiser == "mse_cplx+mag":
-			self.loss_fn_denoiser = lambda x, y: self._reduce_op(torch.pow(torch.abs(x) - torch.abs(y), 2) + torch.pow(x.real - y.real, 2) + torch.pow(x.imag - y.imag, 2))
-		elif self.loss_type_denoiser == "mse_time+mag":
-			self.loss_fn_denoiser = lambda x, y: self._reduce_op(torch.pow(torch.abs(x) - torch.abs(y), 2) + 10*torch.pow(self.to_audio(x) - self.to_audio(x), 2))
 		elif self.loss_type_denoiser == "none":
 			self.loss_fn_denoiser = None
 		else:
@@ -567,21 +557,13 @@ class ScoreRefinerModel(pl.LightningModule):
 		self.ema.update(self.parameters())
 
 	def load_denoiser_model(self, checkpoint):
-		# print([type(m).__name__ for m in self.denoiser_net.all_modules])
-		current_list = list(self.denoiser_net.state_dict().keys())
-		loaded_list = list(torch.load(checkpoint, map_location=lambda storage, loc: storage)['state_dict'].keys())
-		for x, y in zip(current_list, loaded_list):
-			if x != ".".join(y.split(".")[1: ]):
-				print(x)
-
 		self.denoiser_net = DiscriminativeModel.load_from_checkpoint(checkpoint).dnn
-		if self.loss_type_denoiser == "none":
+		if self.mode == "regen-freeze-denoiser":
 			for param in self.denoiser_net.parameters():
 				param.requires_grad = False
 
 	def load_score_model(self, checkpoint):
-		# self.score_net.load_state_dict(checkpoint)
-		self.denoiser_net = ScoreModel.load_from_checkpoint(checkpoint).dnn
+		self.score_net = ScoreModel.load_from_checkpoint(checkpoint).dnn
 		if self.loss_type_score == "none":
 			for param in self.score_net.parameters():
 				param.requires_grad = False
@@ -639,51 +621,23 @@ class ScoreRefinerModel(pl.LightningModule):
 		return score
 
 	def forward_denoiser(self, y, **kwargs):
-		if self.denoiser_net.FORCE_STFT_OUT:
-			y = self._istft(self._backward_transform(y.clone().squeeze(1)))
 		x_hat = self.denoiser_net(y)
-		if self.denoiser_net.FORCE_STFT_OUT:
-			x_hat = self._forward_transform(self._stft(x_hat)).unsqueeze(1)
 		return x_hat
 
 	def _step(self, batch, batch_idx):
-		if len(batch) == 2:
-			x, y = batch
-		elif len(batch) == 3:
-			assert "bwe" in self.data_module.task, "Received metadata for a task which is not BWE"
-			x, y, scale_factors = batch
+		x, y = batch
 
 		# Denoising step
 		if self.denoiser_net is not None:
 			y_denoised = self.forward_denoiser(y)
 		else:
-			# assert self.mode == "score_only"
 			y_denoised = None
 
 		# Score step
 		if self.score_net is not None:
 
-			# Input selection
-			# if self.mode == "score_only":
-			# 	sde_target = x
-			# 	sde_input = y
-			if "refine" in self.mode:
-				if self.residue_in_stft:
-					sde_input = self._forward_transform( self._backward_transform(y) - self._backward_transform(y_denoised) )
-					sde_target = self._forward_transform( self._backward_transform(x) - self._backward_transform(y_denoised) )
-					step_norm_factor = torch.amax(sde_input.abs(), dim=tuple(range(1, y.ndim)), keepdim=True)
-					sde_input = sde_input / step_norm_factor
-					sde_target = sde_target / step_norm_factor
-				else:
-					step_norm_factor = torch.amax((y - y_denoised).abs(), dim=tuple(range(1, y.ndim)), keepdim=True)
-					sde_target = 1/step_norm_factor*(x - y_denoised)
-					sde_input = 1/step_norm_factor*(y - y_denoised)
-			elif "regen" in self.mode:
-					sde_target = x
-					sde_input = y_denoised
-			else:
-				raise NotImplementedError(f"Don't know the mode you have wished for: {self.mode}")
-
+			sde_target = x
+			sde_input = y_denoised
 			# Forward process
 			t = torch.rand(x.shape[0], device=x.device) * (self.sde.T - self.t_eps) + self.t_eps
 			mean, std = self.sde.marginal_prob(sde_target, t, sde_input)
@@ -859,18 +813,6 @@ class ScoreRefinerModel(pl.LightningModule):
 				Y_denoised = None
 
 			if self.score_net is not None and not denoiser_only:
-
-				# Input selection
-				if "refine" in self.mode:
-					if self.residue_in_stft:
-						sde_input = self._forward_transform( self._backward_transform(Y) - self._backward_transform(Y_denoised) )
-					else:
-						sde_input = Y - Y_denoised
-					residue_norm_factor = torch.amax(sde_input.abs(), dim=tuple(range(1, y.ndim)), keepdim=True)
-					sde_input /= residue_norm_factor
-				elif "regen" in self.mode:
-					sde_input = Y_denoised
-
 				# Conditioning
 				if self.condition == "noisy":
 					score_conditioning = [Y]
@@ -883,22 +825,17 @@ class ScoreRefinerModel(pl.LightningModule):
 
 				# Reverse process
 				if sampler_type == "pc":
-					sampler = self.get_pc_sampler(predictor, corrector, sde_input, N=N,
+					sampler = self.get_pc_sampler(predictor, corrector, Y_denoised, N=N,
 						corrector_steps=corrector_steps, snr=snr, intermediate=False,
 						scale_factor=scale_factor, conditioning=score_conditioning,
 						**kwargs)
 				elif sampler_type == "ode":
-					sampler = self.get_ode_sampler(sde_input, N=N, conditioning=score_conditioning, 
+					sampler = self.get_ode_sampler(Y_denoised, N=N, 
+						conditioning=score_conditioning, 
 						**kwargs)
 				else:
 					print("{} is not a valid sampler type!".format(sampler_type))
 				sample, nfe = sampler()
-				if "refine" in self.mode:
-					sample *= residue_norm_factor
-					if self.residue_in_stft:
-						sample = self._forward_transform( self._backward_transform(sample) + self._backward_transform(Y_denoised) )
-					else:
-						sample = sample + Y_denoised
 			else:
 				sample = Y_denoised
 
