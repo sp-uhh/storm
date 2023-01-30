@@ -25,8 +25,8 @@ EPS_LOG = 1e-10
 base_parser = ArgumentParser(add_help=False)
 parser = ArgumentParser()
 for parser_ in (base_parser, parser):
-	parser_.add_argument("--test-dir", type=str, required=True, help="Directory containing your corrupted files to enhance.")
-	parser_.add_argument("--enhanced-dir", type=str, required=True, help="Where to write your cleaned files.")
+	parser_.add_argument("--test_dir", type=str, required=True, help="Directory containing your corrupted files to enhance.")
+	parser_.add_argument("--enhanced_dir", type=str, required=True, help="Where to write your cleaned files.")
 	parser_.add_argument("--ckpt", type=str, required=True)
 	parser_.add_argument("--mode", required=True, choices=["score-only", "denoiser-only", "regen-freeze-denoiser", "regen-joint-training"])
 
@@ -36,10 +36,6 @@ for parser_ in (base_parser, parser):
 	parser_.add_argument("--N", type=int, default=50, help="Number of reverse steps")
 
 args = parser.parse_args()
-
-format_display = args.format if not args.cross else f"{args.format}_cross_{args.format_cross}"
-actual_format = args.format_cross if args.cross else args.format
-actual_task = args.task_cross if (args.cross and args.task_cross is not None) else args.task
 
 os.makedirs(args.enhanced_dir, exist_ok=True)
 

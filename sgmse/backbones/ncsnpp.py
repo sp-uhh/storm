@@ -65,7 +65,6 @@ class NCSNpp(nn.Module):
 		**kwargs):
 		super().__init__()
 
-		self.FORCE_STFT_OUT = False
 		self.act = act = get_act(nonlinearity)
 
 		self.nf = nf = nf
@@ -136,13 +135,11 @@ class NCSNpp(nn.Module):
 		if resblock_type == 'ddpm':
 			ResnetBlock = functools.partial(ResnetBlockDDPM, act=act, 
 				dropout=dropout, init_scale=init_scale, 
-				skip_rescale=skip_rescale, temb_dim=nf * 4)
-
+				skip_rescale=skip_rescale, temb_dim=(nf * 4 if conditional else None))
 		elif resblock_type == 'biggan':
 			ResnetBlock = functools.partial(ResnetBlockBigGAN, act=act,
 				dropout=dropout, fir=fir, fir_kernel=fir_kernel, 
-				init_scale=init_scale, skip_rescale=skip_rescale, temb_dim=nf * 4)
-
+				init_scale=init_scale, skip_rescale=skip_rescale, temb_dim=(nf * 4 if conditional else None))
 		else:
 			raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
@@ -150,22 +147,19 @@ class NCSNpp(nn.Module):
 		### TIME EMBEDDING ###
 		######################
 
-		if embedding_type == 'fourier':
-			# Gaussian Fourier features embeddings.
-			# assert config.training.continuous, "Fourier features are only used for continuous training."
-
-			modules.append(layerspp.GaussianFourierProjection(
-				embedding_size=nf, scale=fourier_scale
-			))
-			embed_dim = 2 * nf
-
-		elif embedding_type == 'positional':
-			embed_dim = nf
-
-		else:
-			raise ValueError(f'embedding type {embedding_type} unknown.')
-
 		if conditional:
+			if embedding_type == 'fourier':
+				# Gaussian Fourier features embeddings.
+				# assert config.training.continuous, "Fourier features are only used for continuous training."
+				modules.append(layerspp.GaussianFourierProjection(
+					embedding_size=nf, scale=fourier_scale
+				))
+				embed_dim = 2 * nf
+			elif embedding_type == 'positional':
+				embed_dim = nf
+			else:
+				raise ValueError(f'embedding type {embedding_type} unknown.')
+
 			modules.append(nn.Linear(embed_dim, nf * 4))
 			modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
 			nn.init.zeros_(modules[-1].bias)
@@ -295,24 +289,21 @@ class NCSNpp(nn.Module):
 				)
 		x = torch.cat(x_chans, dim=1) #4*D
 
-		if self.embedding_type == 'fourier':
-			# Gaussian Fourier features embeddings.
-			used_sigmas = time_cond
-			if self.conditional:
-				temb = modules[m_idx](torch.log(used_sigmas))
-			m_idx += 1
+		if self.conditional:
 
-		elif self.embedding_type == 'positional':
-			# Sinusoidal positional embeddings.
-			timesteps = time_cond
-			if self.conditional:
+			if self.embedding_type == 'fourier':
+				# Gaussian Fourier features embeddings.
+				used_sigmas = time_cond
+				temb = modules[m_idx](torch.log(used_sigmas))
+				m_idx += 1
+			elif self.embedding_type == 'positional':
+				# Sinusoidal positional embeddings.
+				timesteps = time_cond
 				used_sigmas = self.sigmas[time_cond.long()]
 				temb = layers.get_timestep_embedding(timesteps, self.nf)
+			else:
+				raise ValueError(f'embedding type {self.embedding_type} unknown.')
 
-		else:
-			raise ValueError(f'embedding type {self.embedding_type} unknown.')
-
-		if self.conditional:
 			temb = modules[m_idx](temb)
 			m_idx += 1
 			temb = modules[m_idx](self.act(temb))

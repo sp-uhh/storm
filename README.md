@@ -27,20 +27,17 @@ Usage:
 Training is done by executing `train.py`. A minimal running example with default settings (as in our paper [2]) can be run with
 
 ```bash
-python train.py --task <your_task> --format <your_format>--base_dir <your_base_dir> --gpus 0,
+python train.py --format <your_format>--base_dir <your_base_dir> --gpus 0,
 ```
 
 where 
-
--  `your_task` is the speech restoration task at hand i.e:
-    - `enh` for enhancement
-    - `derev` for dereverberation
 
 - `your_base_dir` should be a path to a folder containing subdirectories `train/` and `valid/` (optionally `test/` as well). The subdirectory structure depends on `your_format`:
     - `your_format=wsj0`: Each subdirectory must itself have two subdirectories `clean/` and `noisy/`, with the same filenames present in both.
     - Add formats on your own, correpsonding to your data structure
 
-To see all available training options, run `python train.py --help`. Note that the available options for the SDE and the backbone network change depending on which SDE and backbone you use. These can be set through the `--sde` and `--backbone` options.
+To see all available training options, run `python train.py --help`.
+These include options for the backbone DNN, the SDE parameters, the PytorchLightning Trainer usual parameters such as `max_epochs`, `limit_train_batches` and so on.
 
 **Note:**
 - This paper [1] uses a lighter configuration of the NCSN++ backbone with 27.8M parameters, which is passed with `--backbone ncsnpp` by default. By contrast, the architecture used in the paper [2] uses `--backbone ncsnpp-large` which is the baseline 65M parameters NCSN++.
@@ -49,7 +46,7 @@ To see all available training options, run `python train.py --help`. Note that t
 
 To evaluate on a test set, run
 ```bash
-python enhancement.py --in-dir <your_test_dir> --out-dir <your_enhanced_dir> --ckpt <path_to_model_checkpoint>
+python enhancement.py --test_dir <your_test_dir> --enhanced_dir <your_enhanced_dir> --ckpt <path_to_model_checkpoint>
 ```
 
 to generate the enhanced .wav files. The `--cpkt` parameter of `enhancement.py` should be the path to a trained model checkpoint, as stored by the logger in `logs/`.

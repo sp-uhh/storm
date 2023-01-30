@@ -30,16 +30,16 @@ if __name__ == '__main__':
 	base_parser = ArgumentParser(add_help=False)
 	parser = ArgumentParser()
 	for parser_ in (base_parser, parser):
-		parser_.add_argument("--mode", default="refine", choices=["score-only", "denoiser-only", "regen-freeze-denoiser", "regen-joint-training"],
+		parser_.add_argument("--mode", required=True, choices=["score-only", "denoiser-only", "regen-freeze-denoiser", "regen-joint-training"],
 			help="score-only calls the ScoreModel class, \
 				  denoiser-only calls the DiscriminativeModel class, \
 				  regen-... calls the StochasticRegenerationModel class with the following options: \
 				  	- regen-freeze-denoiser will freeze the denoiser, make sure to call a pretrained model \
 					- regen-joint-training will not freeze the denoiser and consequently will train jointly the denoiser and score model")
-		parser_.add_argument("--backbone-denoiser", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
-		parser_.add_argument("--pretrained-denoiser", default=None, help="checkpoint for denoiser")
-		parser_.add_argument("--backbone-score", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
-		parser_.add_argument("--pretrained-score", default=None, help="checkpoint for score")
+		parser_.add_argument("--backbone_denoiser", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
+		parser_.add_argument("--pretrained_denoiser", default=None, help="checkpoint for denoiser")
+		parser_.add_argument("--backbone_score", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
+		parser_.add_argument("--pretrained_score", default=None, help="checkpoint for score")
 
 		parser_.add_argument("--sde", type=str, choices=SDERegistry.get_all_names(), default="ouve")
 		parser_.add_argument("--nolog", action='store_true', help="Turn off logging (for development purposes)")
@@ -132,21 +132,17 @@ if __name__ == '__main__':
 		data_tag = model.data_module.base_dir.strip().split("/")[-3] if model.data_module.format == "whamr" else model.data_module.base_dir.strip().split("/")[-1] 
 		logging_name = f"mode=denoiser-only_sde={sde_class.__name__}_backbone={args.backbone_denoiser}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
 
-	logger = TensorBoardLogger(save_dir=f"./.logs/.{model.data_module.task}", name=logging_name, flush_secs=30)
+	logger = TensorBoardLogger(save_dir=f"./.logs/", name=logging_name, flush_secs=30) if not args.nolog else None
 
-	if args.logstdout:
-		log_dir=logger.log_dir
-		os.makedirs(log_dir, exist_ok=True)
-		sys.stdout = open(os.path.join(log_dir, "stdout.log"), 'w')
-
-	### callbacks
-	early_stopping = EarlyStopping(monitor="valid_loss", mode="min", patience=50)
-	progress_bar = TQDMProgressBar(refresh_rate=50)
-	checkpoint_callback_loss = ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
-		save_last=True, save_top_k=1, monitor="valid_loss", filename='{epoch}')
-	checkpoint_callback_pesq = ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
-		save_top_k=1, monitor="ValidationPESQ", mode="max", filename='{epoch}-{pesq:.2f}')
-	callbacks = [progress_bar, checkpoint_callback_loss, checkpoint_callback_pesq, early_stopping]
+	# Callbacks
+	callbacks = []
+	callbacks.append(EarlyStopping(monitor="valid_loss", mode="min", patience=50))
+	callbacks.append(TQDMProgressBar(refresh_rate=50))
+	if not args.nolog:
+		callbacks.append(ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
+			save_last=True, save_top_k=1, monitor="valid_loss", filename='{epoch}'))
+		callbacks.append(ModelCheckpoint(dirpath=os.path.join(logger.log_dir, "checkpoints"), 
+			save_top_k=1, monitor="ValidationPESQ", mode="max", filename='{epoch}-{pesq:.2f}'))
 
 	# Initialize the Trainer and the DataModule
 	trainer = pl.Trainer.from_argparse_args(
@@ -160,5 +156,3 @@ if __name__ == '__main__':
 
 	# Train model
 	trainer.fit(model)
-	if args.logstdout:
-		sys.stdout.close()

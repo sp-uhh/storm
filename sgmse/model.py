@@ -25,11 +25,8 @@ class ScoreModel(pl.LightningModule):
 	def __init__(self,
 		backbone: str = "blade", sde: str = "ouvesde",
 		lr: float = 1e-4, ema_decay: float = 0.999,
-		t_eps: float = 3e-2, reduce_mean: bool = False,
-		transform: str = 'none', input_y: bool = True, nolog: bool = False,
-		num_eval_files: int = 50, weighting_exponent: float = 0.0, 
-		g_weighting_exponent: float = 0.0, output_std_exponent: float = -1.,
-		loss_type: str = 'mse', data_module_cls = None, residual = False, **kwargs
+		t_eps: float = 3e-2, transform: str = 'none', nolog: bool = False,
+		num_eval_files: int = 50, loss_type: str = 'mse', data_module_cls = None, **kwargs
 	):
 		"""
 		Create a new ScoreModel.
@@ -46,50 +43,34 @@ class ScoreModel(pl.LightningModule):
 		"""
 		super().__init__()
 		# Initialize Backbone DNN
-		self.input_y = input_y
 		dnn_cls = BackboneRegistry.get_by_name(backbone)
-		if self.input_y:
-			kwargs.update(input_channels=4)
-		else:
-			kwargs.update(input_channels=2)
+		kwargs.update(input_channels=4)
 		self.dnn = dnn_cls(**kwargs)
 		# Initialize SDE
 		sde_cls = SDERegistry.get_by_name(sde)
 		self.sde = sde_cls(**kwargs)
 		# Store hyperparams and save them
-		self.output_std_exponent = output_std_exponent
 		self.lr = lr
 		self.ema_decay = ema_decay
 		self.ema = ExponentialMovingAverage(self.parameters(), decay=self.ema_decay)
 		self._error_loading_ema = False
 		self.t_eps = t_eps
-		self.reduce_mean = reduce_mean
-		self.weighting_exponent = weighting_exponent
-		self.g_weighting_exponent = g_weighting_exponent
 		self.loss_type = loss_type
 		self.num_eval_files = num_eval_files
 
 		self.save_hyperparameters(ignore=['nolog'])
 		self.data_module = data_module_cls(**kwargs, gpu=kwargs.get('gpus', 0) > 0)
-		# Construct the reduce-operation function for the loss calculation
-		self._reduce_op = torch.mean if self.reduce_mean else lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
+		self._reduce_op = lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
 		self.nolog = nolog
 
 	@staticmethod
 	def add_argparse_args(parser):
 		parser.add_argument("--lr", type=float, default=1e-4, help="The learning rate")
-		parser.add_argument("--ema-decay", type=float, default=0.999, help="The parameter EMA decay constant (0.999 by default)")
-		parser.add_argument("--t-eps", type=float, default=0.03, help="The minimum time (3e-2 by default)")
-		parser.add_argument("--reduce-mean", action="store_true", help="Average loss across all data dimensions (as opposed to summing)")
-		parser.add_argument("--num-eval-files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training.")
-		parser.add_argument("--input-y", dest='input_y', action="store_true", help="Provide y to the score model")
-		parser.add_argument("--no-input-y", dest='input_y', action="store_false", help="Don't provide y to the score model")
-		parser.set_defaults(input_y=True)
-		parser.add_argument("--output-std-exponent", type=float, default=0.0, help="Weight model output by (std**exponent). Default is 0.")
-		parser.add_argument("--weighting-exponent", type=float, default=0.0, help="The exponent for the loss weighting (lambda=std**exponent). Can be combined with --g-weighting-exponent.")
-		parser.add_argument("--g-weighting-exponent", type=float, default=0.0, help="The exponent for g in the loss weighting (lambda=g**exponent). Can be combined with --weighting-exponent.")
-		parser.add_argument("--loss-type", type=str, default="mse", choices=("mse", "mae", "gaussian_entropy", "kristina", "sisdr", "time_mse"), help="The type of loss function to use.")
-		parser.add_argument("--spatial-channels", type=int, default=1)
+		parser.add_argument("--ema_decay", type=float, default=0.999, help="The parameter EMA decay constant (0.999 by default)")
+		parser.add_argument("--t_eps", type=float, default=0.03, help="The minimum time (3e-2 by default)")
+		parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training.")
+		parser.add_argument("--loss_type", type=str, default="mse", choices=("mse", "mae", "gaussian_entropy", "kristina", "sisdr", "time_mse"), help="The type of loss function to use.")
+		parser.add_argument("--spatial_channels", type=int, default=1)
 		return parser
 
 	def configure_optimizers(self):
@@ -103,13 +84,6 @@ class ScoreModel(pl.LightningModule):
 
 	# on_load_checkpoint / on_save_checkpoint needed for EMA storing/loading
 	def on_load_checkpoint(self, checkpoint):
-		# current_list = list(self.dnn.state_dict().keys())
-		# loaded_list = checkpoint["state_dict"].keys()
-		# # loaded_list = list(torch.load(checkpoint, map_location=lambda storage, loc: storage)['state_dict'].keys())
-		# for x, y in zip(current_list, loaded_list):
-		# 	print(x, y)
-		# 	if x != ".".join(y.split(".")[1: ]):
-		# 		print(x)
 		ema = checkpoint.get('ema', None)
 		if ema is not None:
 			self.ema.load_state_dict(checkpoint['ema'])
@@ -140,7 +114,6 @@ class ScoreModel(pl.LightningModule):
 		if self.loss_type == 'mse':
 			losses = torch.square(err.abs())
 			loss = torch.mean(0.5*torch.sum(losses.reshape(losses.shape[0], -1), dim=-1))
-			print(loss)
 
 		elif self.loss_type == 'mae':
 			losses = err.abs()
@@ -152,11 +125,7 @@ class ScoreModel(pl.LightningModule):
 		return torch.mean(x * w)
 
 	def _raw_dnn_output(self, x, t, y):
-		"""only for debugging"""
-		if self.input_y == True:
-			dnn_input = torch.cat([x, y], dim=1) #b,2*d,f,t
-		else:
-			dnn_input = x
+		dnn_input = torch.cat([x, y], dim=1) #b,2*d,f,t
 		return self.dnn(dnn_input, t)
 
 	def forward(self, x, t, y, **kwargs):
@@ -164,7 +133,7 @@ class ScoreModel(pl.LightningModule):
 		std = self.sde._std(t, y=y)
 		if std.ndim < y.ndim:
 			std = std.view(*std.size(), *((1,)*(y.ndim - std.ndim)))
-		score = score * std**self.output_std_exponent
+		score = score / std
 		return score
 
 	def _step(self, batch, batch_idx):
@@ -173,30 +142,15 @@ class ScoreModel(pl.LightningModule):
 		elif len(batch) == 3:
 			assert "bwe" in self.data_module.task, "Received metadata for a task which is not BWE"
 			x, y, scale_factors = batch
-			# if self.sde.__class__.__name__ == "FreqOUVESDE":
-			# 	self.sde._set_frequency_weight(scale_factors)
 		t = torch.rand(x.shape[0], device=x.device) * (self.sde.T - self.t_eps) + self.t_eps
 		mean, std = self.sde.marginal_prob(x, t, y)
 		z = torch.randn_like(x)  # i.i.d. normal distributed with var=0.5 ---> problem: this cannot work for FreqOUVE, because is standard, and tries to match a score with a sigma which is not standard
 		if std.ndim < y.ndim:
 			std = std.view(*std.size(), *((1,)*(y.ndim - std.ndim)))
-		# sigmas = std[:, None, None, None]
 		sigmas = std
 		perturbed_data = mean + sigmas * z
-		# if self.eq_loss:
-		# 	spec_y = torch.mean(torch.abs(y), dim=-1)
-		# 	min_spec = torch.min(spec_y, dim=-1).values
-		# 	mask = (spec_y - min_spec) < min_spec
-		# 	spec_y[..., np.argmax(mask.cpu().numpy()): ] = .0 #First Crossing Point
-		# 	lp_vector = spec_y / torch.mean(1e-10 + torch.abs(x), dim=-1) #b,...,F
-		# 	hp_vector = torch.ones_like(lp_vector) - lp_vector
-		# 	perturbed_data = y + perturbed_data*hp_vector
-			
 		score = self(perturbed_data, t, y)
 		err = score * sigmas + z
-		# if self.eq_loss:
-		# 	err *= hp_vector.to(err.device).unsqueeze(-1)
-
 		loss = self._loss(err)
 		return loss
 
@@ -440,12 +394,9 @@ class StochasticRegenerationModel(pl.LightningModule):
 	def __init__(self,
 		backbone_denoiser: str, backbone_score: str, sde: str,
 		lr: float = 1e-4, ema_decay: float = 0.999,
-		t_eps: float = 3e-2, reduce_mean: bool = False,
-		input_y: bool = True, nolog: bool = False,
-		num_eval_files: int = 50, weighting_exponent: float = 0.0, 
-		g_weighting_exponent: float = 0.0, output_std_exponent: float = -1.,
+		t_eps: float = 3e-2, nolog: bool = False, num_eval_files: int = 50,
 		loss_type_denoiser: str = "none", loss_type_score: str = 'mse', data_module_cls = None, 
-		residue_in_stft = False, mode = "regen-joint-training", condition = "both",
+		mode = "regen-joint-training", condition = "both",
 		**kwargs
 	):
 		"""
@@ -463,8 +414,6 @@ class StochasticRegenerationModel(pl.LightningModule):
 		"""
 		super().__init__()
 		# Initialize Backbone DNN
-		self.input_y = input_y
-		### TMP: For now use the same kwargs for both networks, and simply make a difference in the Backbone name (different sizes of NCSNpp) and the input channels
 		kwargs_denoiser = kwargs
 		kwargs_denoiser.update(input_channels=2)
 		kwargs_denoiser.update(discriminative=True)
@@ -474,21 +423,16 @@ class StochasticRegenerationModel(pl.LightningModule):
 		kwargs_denoiser.update(discriminative=False)
 		self.score_net = BackboneRegistry.get_by_name(backbone_score)(**kwargs) if backbone_score != "none" else None
 
-		if sde is not None and backbone_score != "none":
-			# Initialize SDE
-			sde_cls = SDERegistry.get_by_name(sde)
-			self.sde = sde_cls(**kwargs)
-			self.t_eps = t_eps
-			self.weighting_exponent = weighting_exponent
-			self.g_weighting_exponent = g_weighting_exponent
+		# Initialize SDE
+		sde_cls = SDERegistry.get_by_name(sde)
+		self.sde = sde_cls(**kwargs)
+		self.t_eps = t_eps
 
 		# Store hyperparams and save them
-		self.output_std_exponent = output_std_exponent
 		self.lr = lr
 		self.ema_decay = ema_decay
 		self.ema = ExponentialMovingAverage(self.parameters(), decay=self.ema_decay)
 		self._error_loading_ema = False
-		self.reduce_mean = reduce_mean
 
 		self.loss_type_denoiser = loss_type_denoiser
 		self.loss_type_score = loss_type_score
@@ -496,7 +440,6 @@ class StochasticRegenerationModel(pl.LightningModule):
 			self.weighting_denoiser_to_score = kwargs["weighting_denoiser_to_score"]
 		else:
 			self.weighting_denoiser_to_score = .5
-		self.residue_in_stft = residue_in_stft
 		self.condition = condition
 		self.mode = mode
 		self.configure_losses()
@@ -504,35 +447,30 @@ class StochasticRegenerationModel(pl.LightningModule):
 		self.num_eval_files = num_eval_files
 		self.save_hyperparameters(ignore=['nolog'])
 		self.data_module = data_module_cls(**kwargs, gpu=kwargs.get('gpus', 0) > 0)
-		# Construct the reduce-operation function for the loss calculation
-		self._reduce_op = torch.mean if self.reduce_mean else lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
+		self._reduce_op = lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
 		self.nolog = nolog
 
 	@staticmethod
 	def add_argparse_args(parser):
 		parser.add_argument("--lr", type=float, default=1e-4, help="The learning rate")
-		parser.add_argument("--ema-decay", type=float, default=0.999, help="The parameter EMA decay constant (0.999 by default)")
-		parser.add_argument("--t-eps", type=float, default=0.03, help="The minimum time (3e-2 by default)")
-		parser.add_argument("--reduce-mean", action="store_true", help="Average loss across all data dimensions (as opposed to summing)")
-		parser.add_argument("--num-eval-files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training.")
-		parser.add_argument("--input-y", dest='input_y', action="store_true", help="Provide y to the score model")
-		parser.add_argument("--no-input-y", dest='input_y', action="store_false", help="Don't provide y to the score model")
-		parser.set_defaults(input_y=True)
-		parser.add_argument("--output-std-exponent", type=float, default=0.0, help="Weight model output by (std**exponent). Default is 0.")
-		parser.add_argument("--weighting-exponent", type=float, default=0.0, help="The exponent for the loss weighting (lambda=std**exponent). Can be combined with --g-weighting-exponent.")
-		parser.add_argument("--g-weighting-exponent", type=float, default=0.0, help="The exponent for g in the loss weighting (lambda=g**exponent). Can be combined with --weighting-exponent.")
-		parser.add_argument("--loss-type-denoiser", type=str, default="none", choices=("none", "mse", "mae", "sisdr", "mse_cplx+mag", "mse_time+mag"), help="The type of loss function to use.")
-		parser.add_argument("--loss-type-score", type=str, default="mse", choices=("none", "mse", "mae"), help="The type of loss function to use.")
-		parser.add_argument("--weighting-denoiser-to-score", type=float, default=0.5, help="a, as in L = a * L_denoiser + (1-a) * .")
+		parser.add_argument("--ema_decay", type=float, default=0.999, help="The parameter EMA decay constant (0.999 by default)")
+		parser.add_argument("--t_eps", type=float, default=0.03, help="The minimum time (3e-2 by default)")
+		parser.add_argument("--num_eval_files", type=int, default=10, help="Number of files for speech enhancement performance evaluation during training.")
+		parser.add_argument("--loss_type_denoiser", type=str, default="mse", choices=("none", "mse", "mae", "sisdr", "mse_cplx+mag", "mse_time+mag"), help="The type of loss function to use.")
+		parser.add_argument("--loss_type_score", type=str, default="mse", choices=("none", "mse", "mae"), help="The type of loss function to use.")
+		parser.add_argument("--weighting_denoiser_to_score", type=float, default=0.5, help="a, as in L = a * L_denoiser + (1-a) * .")
 		parser.add_argument("--condition", default="noisy", choices=["noisy", "post_denoiser", "both"])
-		parser.add_argument("--spatial-channels", type=int, default=1)
+		parser.add_argument("--spatial_channels", type=int, default=1)
 		return parser
 
 	def configure_losses(self):
 		# Score Loss
 		if self.loss_type_score == "mse":
 			self.loss_fn_score = lambda err: self._reduce_op(torch.square(torch.abs(err)))
+		elif self.loss_type_score == "mae":
+			self.loss_fn_score = lambda err: self._reduce_op(torch.abs(err))
 		elif self.loss_type_score == "none":
+			raise NotImplementedError
 			self.loss_fn_score = None
 		else:
 			raise NotImplementedError
@@ -564,9 +502,6 @@ class StochasticRegenerationModel(pl.LightningModule):
 
 	def load_score_model(self, checkpoint):
 		self.score_net = ScoreModel.load_from_checkpoint(checkpoint).dnn
-		if self.loss_type_score == "none":
-			for param in self.score_net.parameters():
-				param.requires_grad = False
 
 	# on_load_checkpoint / on_save_checkpoint needed for EMA storing/loading
 	def on_load_checkpoint(self, checkpoint):
@@ -617,7 +552,7 @@ class StochasticRegenerationModel(pl.LightningModule):
 		std = self.sde._std(t, y=sde_input)
 		if std.ndim < sde_input.ndim:
 			std = std.view(*std.size(), *((1,)*(sde_input.ndim - std.ndim)))
-		score = score * std**self.output_std_exponent
+		score = score / std
 		return score
 
 	def forward_denoiser(self, y, **kwargs):
@@ -628,39 +563,34 @@ class StochasticRegenerationModel(pl.LightningModule):
 		x, y = batch
 
 		# Denoising step
-		if self.denoiser_net is not None:
+		with torch.set_grad_enabled(self.mode != "regen-freeze-denoiser"):
 			y_denoised = self.forward_denoiser(y)
-		else:
-			y_denoised = None
 
 		# Score step
-		if self.score_net is not None:
 
-			sde_target = x
-			sde_input = y_denoised
-			# Forward process
-			t = torch.rand(x.shape[0], device=x.device) * (self.sde.T - self.t_eps) + self.t_eps
-			mean, std = self.sde.marginal_prob(sde_target, t, sde_input)
-			z = torch.randn_like(x)  # i.i.d. normal distributed with var=0.5
-			if std.ndim < y.ndim:
-				std = std.view(*std.size(), *((1,)*(y.ndim - std.ndim)))
-			sigmas = std
-			perturbed_data = mean + sigmas * z
+		sde_target = x
+		sde_input = y_denoised
+		# Forward process
+		t = torch.rand(x.shape[0], device=x.device) * (self.sde.T - self.t_eps) + self.t_eps
+		mean, std = self.sde.marginal_prob(sde_target, t, sde_input)
+		z = torch.randn_like(x)  # i.i.d. normal distributed with var=0.5
+		if std.ndim < y.ndim:
+			std = std.view(*std.size(), *((1,)*(y.ndim - std.ndim)))
+		sigmas = std
+		perturbed_data = mean + sigmas * z
 
-			# Score estimation
-			if self.condition == "noisy":
-				score_conditioning = [y]
-			elif self.condition == "post_denoiser":
-				score_conditioning = [y_denoised]
-			elif self.condition == "both":
-				score_conditioning = [y, y_denoised]
-			else:
-				raise NotImplementedError(f"Don't know the conditioning you have wished for: {self.condition}")
-
-			score = self.forward_score(perturbed_data, t, score_conditioning, sde_input)
-			err = score * sigmas + z
+		# Score estimation
+		if self.condition == "noisy":
+			score_conditioning = [y]
+		elif self.condition == "post_denoiser":
+			score_conditioning = [y_denoised]
+		elif self.condition == "both":
+			score_conditioning = [y, y_denoised]
 		else:
-			err = None
+			raise NotImplementedError(f"Don't know the conditioning you have wished for: {self.condition}")
+
+		score = self.forward_score(perturbed_data, t, score_conditioning, sde_input)
+		err = score * sigmas + z
 
 		loss, loss_score, loss_denoiser = self._loss(err, y_denoised, x)
 
@@ -669,8 +599,7 @@ class StochasticRegenerationModel(pl.LightningModule):
 	def training_step(self, batch, batch_idx):
 		loss, loss_score, loss_denoiser = self._step(batch, batch_idx)
 		self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
-		if loss_score is not None:
-			self.log('train_loss_score', loss_score, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
+		self.log('train_loss_score', loss_score, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
 		if loss_denoiser is not None:
 			self.log('train_loss_denoiser', loss_denoiser, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
 		return loss
@@ -678,8 +607,7 @@ class StochasticRegenerationModel(pl.LightningModule):
 	def validation_step(self, batch, batch_idx, discriminative=False, sr=16000):
 		loss, loss_score, loss_denoiser = self._step(batch, batch_idx)
 		self.log('valid_loss', loss, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
-		if loss_score is not None:
-			self.log('valid_loss_score', loss_score, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
+		self.log('valid_loss_score', loss_score, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
 		if loss_denoiser is not None:
 			self.log('valid_loss_denoiser', loss_denoiser, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
 

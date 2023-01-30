@@ -26,12 +26,11 @@ def get_window(window_type, window_length):
 
 class Specs(Dataset):
 	def __init__(
-		self, task, data_dir, subset, dummy, shuffle_spec, num_frames, format,
+		self, data_dir, subset, dummy, shuffle_spec, num_frames, format,
 		normalize_audio=True, spec_transform=None, stft_kwargs=None, spatial_channels=1, 
 		return_time=False,
 		**ignored_kwargs
 	):
-		self.task = task
 		self.data_dir = data_dir
 		self.subset = subset
 		self.format = format
@@ -140,16 +139,14 @@ class Specs(Dataset):
 
 class SpecsDataModule(pl.LightningDataModule):
 	def __init__(
-		self, task="bwe", base_dir="", format="wsj0", add_noise=False, spatial_channels=1, batch_size=8,
+		self, base_dir="", format="wsj0", spatial_channels=1, batch_size=8,
 		n_fft=510, hop_length=128, num_frames=256, window="hann",
 		num_workers=8, dummy=False, spec_factor=0.15, spec_abs_exponent=0.5,
 		gpu=True, return_time=False, **kwargs
 	):
 		super().__init__()
-		self.task = task
 		self.base_dir = base_dir
 		self.format = format
-		self.add_noise = add_noise
 		self.spatial_channels = spatial_channels
 		self.batch_size = batch_size
 		self.n_fft = n_fft
@@ -171,15 +168,15 @@ class SpecsDataModule(pl.LightningDataModule):
 			**self.stft_kwargs, **self.kwargs
 		)
 		if stage == 'fit' or stage is None:
-			self.train_set = Specs(self.task, self.base_dir, 'train', self.dummy, True, 
-				format=self.format, add_noise=self.add_noise, spatial_channels=self.spatial_channels, 
+			self.train_set = Specs(self.base_dir, 'train', self.dummy, True, 
+				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
-			self.valid_set = Specs(self.task, self.base_dir, 'valid', self.dummy, False, 
-				format=self.format, add_noise=self.add_noise, spatial_channels=self.spatial_channels, 
+			self.valid_set = Specs(self.base_dir, 'valid', self.dummy, False, 
+				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
 		if stage == 'test' or stage is None:
-			self.test_set = Specs(self.task, self.base_dir, 'test', self.dummy, False, 
-				format=self.format, add_noise=self.add_noise, spatial_channels=self.spatial_channels, 
+			self.test_set = Specs(self.base_dir, 'test', self.dummy, False, 
+				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
 
 	def spec_fwd(self, spec):
@@ -227,24 +224,22 @@ class SpecsDataModule(pl.LightningDataModule):
 
 	@staticmethod
 	def add_argparse_args(parser):
-		parser.add_argument("--task", type=str, default="enh", choices=["enh", "sep", "derev", "derev+enh", "bwe"])
 		parser.add_argument("--format", type=str, default="wsj0", choices=["wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
-		parser.add_argument("--base-dir", type=str, default="/data/lemercier/databases/wsj0+chime_julian/audio",
+		parser.add_argument("--base_dir", type=str, default="/data/lemercier/databases/wsj0+chime_julian/audio",
 			help="The base directory of the dataset. Should contain `train`, `valid` and `test` subdirectories, "
 				"each of which contain `clean` and `noisy` subdirectories.")
-		parser.add_argument("--add-noise", action="store_true", help="Add noise.")
-		parser.add_argument("--batch-size", type=int, default=8, help="The batch size. 32 by default.")
-		parser.add_argument("--n-fft", type=int, default=510, help="Number of FFT bins. 510 by default.")   # to assure 256 freq bins
-		parser.add_argument("--hop-length", type=int, default=128, help="Window hop length. 128 by default.")
-		parser.add_argument("--num-frames", type=int, default=256, help="Number of frames for the dataset. 256 by default.")
+		parser.add_argument("--batch_size", type=int, default=8, help="The batch size. 32 by default.")
+		parser.add_argument("--n_fft", type=int, default=510, help="Number of FFT bins. 510 by default.")   # to assure 256 freq bins
+		parser.add_argument("--hop_length", type=int, default=128, help="Window hop length. 128 by default.")
+		parser.add_argument("--num_frames", type=int, default=256, help="Number of frames for the dataset. 256 by default.")
 		parser.add_argument("--window", type=str, choices=("sqrthann", "hann"), default="hann", help="The window function to use for the STFT. 'sqrthann' by default.")
-		parser.add_argument("--num-workers", type=int, default=8, help="Number of workers to use for DataLoaders. 4 by default.")
+		parser.add_argument("--num_workers", type=int, default=8, help="Number of workers to use for DataLoaders. 4 by default.")
 		parser.add_argument("--dummy", action="store_true", help="Use reduced dummy dataset for prototyping.")
-		parser.add_argument("--spec-factor", type=float, default=0.33, help="Factor to multiply complex STFT coefficients by.") ##### In Simon's current impl, this is 0.15 !
-		parser.add_argument("--spec-abs-exponent", type=float, default=0.5,
+		parser.add_argument("--spec_factor", type=float, default=0.33, help="Factor to multiply complex STFT coefficients by.") ##### In Simon's current impl, this is 0.15 !
+		parser.add_argument("--spec_abs_exponent", type=float, default=0.5,
 			help="Exponent e for the transformation abs(z)**e * exp(1j*angle(z)). "
 				"1 by default; set to values < 1 to bring out quieter features.")
-		parser.add_argument("--return-time", action="store_true", help="Return the waveform instead of the STFT")
+		parser.add_argument("--return_time", action="store_true", help="Return the waveform instead of the STFT")
 
 		return parser
 
@@ -285,10 +280,10 @@ class SpecsDataModule(pl.LightningDataModule):
 class SpecsAndTranscriptions(Specs):
 
 	def __init__(
-		self, task, data_dir, subset, dummy, shuffle_spec, num_frames, format,
+		self, data_dir, subset, dummy, shuffle_spec, num_frames, format,
 		**kwargs
 	):
-		super().__init__(task, data_dir, subset, dummy, shuffle_spec, num_frames, format, **kwargs)
+		super().__init__(data_dir, subset, dummy, shuffle_spec, num_frames, format, **kwargs)
 		if format == "timit":
 			dic_correspondence_subsets = {"train": "tr", "valid": "cv", "test": "tt"}
 			self.clean_files = sorted(glob(join(data_dir, "audio", dic_correspondence_subsets[subset]) + '/clean/*.wav'))
@@ -321,13 +316,12 @@ class SpecsAndTranscriptionsDataModule(SpecsDataModule):
 		if stage == 'fit' or stage is None:
 			raise NotImplementedError
 		if stage == 'test' or stage is None:
-			self.test_set = SpecsAndTranscriptions(self.task, self.base_dir, 'test', self.dummy, False, 
+			self.test_set = SpecsAndTranscriptions(self.base_dir, 'test', self.dummy, False, 
 			format=self.format, **specs_kwargs)
 
 
 	@staticmethod
 	def add_argparse_args(parser):
-		parser.add_argument("--task", type=str, default="derev", choices=["enh", "sep", "derev", "derev+enh", "bwe"])
 		parser.add_argument("--format", type=str, default="reverb_wsj0", choices=["wsj0", "vctk", "dns", "reverb_wsj0"], help="File paths follow the DNS data description.")
 		parser.add_argument("--base-dir", type=str, default="/data/lemercier/databases/reverb_wsj0+chime/audio")
 		parser.add_argument("--batch-size", type=int, default=8, help="The batch size.")
