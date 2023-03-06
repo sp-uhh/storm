@@ -28,7 +28,7 @@ for parser_ in (base_parser, parser):
 	parser_.add_argument("--test_dir", type=str, required=True, help="Directory containing your corrupted files to enhance.")
 	parser_.add_argument("--enhanced_dir", type=str, required=True, help="Where to write your cleaned files.")
 	parser_.add_argument("--ckpt", type=str, required=True)
-	parser_.add_argument("--mode", required=True, choices=["score-only", "denoiser-only", "regen-freeze-denoiser", "regen-joint-training"])
+	parser_.add_argument("--mode", required=True, choices=["score-only", "denoiser-only", "storm"])
 
 	parser_.add_argument("--corrector", type=str, choices=("ald", "langevin", "none"), default="ald", help="Corrector class for the PC sampler.")
 	parser_.add_argument("--corrector-steps", type=int, default=1, help="Number of corrector steps")
@@ -46,7 +46,7 @@ checkpoint_file = args.ckpt
 model_sr = 16000
 
 # Load score model 
-if "regen" in args.mode:
+if args.mode == "storm":
 	model_cls = StochasticRegenerationModel
 elif args.mode == "score-only":
 	model_cls = ScoreModel
