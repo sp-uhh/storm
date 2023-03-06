@@ -133,7 +133,6 @@ class ScoreModel(pl.LightningModule):
         std = self.sde._std(t, y=y)
         if std.ndim < y.ndim:
             std = std.view(*std.size(), *((1,)*(y.ndim - std.ndim)))
-        score = score / std
         return score
 
     def _step(self, batch, batch_idx):
@@ -552,7 +551,6 @@ class StochasticRegenerationModel(pl.LightningModule):
         std = self.sde._std(t, y=sde_input)
         if std.ndim < sde_input.ndim:
             std = std.view(*std.size(), *((1,)*(sde_input.ndim - std.ndim)))
-        score = score / std
         return score
 
     def forward_denoiser(self, y, **kwargs):
