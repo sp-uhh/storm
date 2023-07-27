@@ -67,16 +67,18 @@ Please check the script for other options
 
 We kindly ask you to cite our papers in your publication when using any of our research or code:
 ```bib
-@article{lemercier2022storm,
-  title={{StoRM}: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation},
+@article{lemercier2023storm,
   author={Lemercier, Jean-Marie and Richter, Julius and Welker, Simon and Gerkmann, Timo},
-  journal={arXiv preprint arXiv:2212.11851},
-  year={2022}
-}
+  journal={IEEE/ACM Transactions on Audio, Speech, and Language Processing}, 
+  title={StoRM: A Diffusion-Based Stochastic Regeneration Model for Speech Enhancement and Dereverberation}, 
+  year={2023},
+  volume={31},
+  number={},
+  pages={2724-2737},
+  doi={10.1109/TASLP.2023.3294692}}
+
 ```
 
->[1] Jean-Marie Lemercier, Julius Richter, Simon Welker, and Timo Gerkmann. "StoRM: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation", *arXiv preprint arXiv:2212.11851*, 2022.
+>[1] Jean-Marie Lemercier, Julius Richter, Simon Welker, and Timo Gerkmann. "StoRM: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation", *IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 31, pp. 2724-2737*, 2023.
 >
->[2] Julius Richter, Simon Welker, Jean-Marie Lemercier, Bunlong Lay and Timo Gerkmann. "Speech Enhancement and Dereverberation with Diffusion-Based Generative Models", *arXiv preprint arXiv:2208.05830*, 2022.
-
-These papers have been submitted to journals and are currently under review. The appropriate citation for them may therefore change in the future.
+>[2] Julius Richter, Simon Welker, Jean-Marie Lemercier, Bunlong Lay and Timo Gerkmann. "Speech Enhancement and Dereverberation with Diffusion-Based Generative Models", *IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 31, pp. 2351-2364*, 2023.
