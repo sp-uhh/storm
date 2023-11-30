@@ -63,6 +63,9 @@ to generate the enhanced .wav files. The `--cpkt` parameter of `enhancement.py` 
 
 Please check the script for other options
 
+- For the wind noise generation scripts and non-linear mixing technique presented in [3], we refer the reader to [4] and suggest asking the authors about their wind noise generator code.
+We only provide here the script for parsing the commands to that generator + the non-linar mixing method. We are not responsible for distribution of the code by [4].
+
 ## Citations / References
 
 We kindly ask you to cite our papers in your publication when using any of our research or code:
@@ -79,6 +82,19 @@ We kindly ask you to cite our papers in your publication when using any of our r
 
 ```
 
+```bib
+@inproceedings{lemercier2023wind,
+  author={Lemercier, Jean-Marie and Thiemannm, Joachim and Konig, Raphael and Gerkmann, Timo},
+  booktitle={VDE 15th ITG conference on Speech Communication}, 
+  title={Wind Noise Reduction with a Diffusion-based Stochastic Regeneration Model}, 
+  year={2023}}
+
+```
+
 >[1] Jean-Marie Lemercier, Julius Richter, Simon Welker, and Timo Gerkmann. "StoRM: A Stochastic Regeneration Model for Speech Enhancement And Dereverberation", *IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 31, pp. 2724-2737*, 2023.
 >
 >[2] Julius Richter, Simon Welker, Jean-Marie Lemercier, Bunlong Lay and Timo Gerkmann. "Speech Enhancement and Dereverberation with Diffusion-Based Generative Models", *IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 31, pp. 2351-2364*, 2023.
+>
+>[3] Jean-Marie Lemercier, Joachim Thiemann, Raphael Konig and Timo Gerkmann. "Wind Noise Reduction with a Diffusion-based Stochastic Regeneration Model", *ITG Speech Communication*, Aachen, Germany, 2023
+>
+>[4] D. Mirabilii et al. "Simulating wind noise with airflow speed-dependent characteristics,” *Int. Workshop on Acoustic Signal Enhancement*, Aachen, Germany, 2022
