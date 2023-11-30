@@ -16,7 +16,7 @@ Audio examples and supplementary materials are available [on our project page](h
 
 ## Pretrained checkpoints
 
-- We provide pretrained checkpoints for the models trained on TIMIT+Chime3 (enhancement), WSJ0+Chime3 (enhancement), Voicebank/DEMAND (enhancement) and WSJ0+Reverb (dereverberation), as in the paper. They can be downloaded [here](https://drive.google.com/drive/folders/1ExFm97obaXTYFoBApWjbK_ypxTP-Cgdq?usp=sharing).
+- We provide pretrained checkpoints for the models trained on TIMIT+Chime3 (enhancement), WSJ0+Chime3 (enhancement), Voicebank/DEMAND (enhancement) and WSJ0+Reverb (dereverberation), as in the original paper [1]. We also included the checkpoints for WSJ0+Wind as in [3]. All checkpoints can be downloaded [here](https://drive.google.com/drive/folders/1ExFm97obaXTYFoBApWjbK_ypxTP-Cgdq?usp=sharing).
 
 Usage:
 - For resuming training, you can use the `--resume_from_checkpoint` option of `train.py`.
