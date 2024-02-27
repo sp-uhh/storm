@@ -8,7 +8,7 @@ import torch
 import os
 from argparse import ArgumentParser
 import time
-from pypapi import events, papi_high as high
+# from pypapi import events, papi_high as high
 
 from sgmse.backbones.shared import BackboneRegistry
 from sgmse.data_module import SpecsDataModule
@@ -43,7 +43,7 @@ os.makedirs(args.enhanced_dir, exist_ok=True)
 checkpoint_file = args.ckpt
 
 # Settings
-model_sr = 16000
+model_sr = 48000
 
 # Load score model 
 if args.mode == "storm":
@@ -60,7 +60,7 @@ model = model_cls.load_from_checkpoint(
 model.eval(no_ema=False)
 model.cuda()
 
-noisy_files = sorted(glob.glob(os.path.join(args.test_dir, "*.wav")))
+noisy_files = sorted(glob.glob(os.path.join(args.test_dir, "**", "*.wav"), recursive=True))
 
 # Loop on files
 for f in tqdm.tqdm(noisy_files):
@@ -69,4 +69,6 @@ for f in tqdm.tqdm(noisy_files):
 	assert sample_sr == model_sr, "You need to make sure sample_sr matches model_sr --> resample to 16kHz"
 	x_hat = model.enhance(y, corrector=args.corrector, N=args.N, corrector_steps=args.corrector_steps, snr=args.snr)
 
-	save(f'{args.enhanced_dir}/{os.path.basename(f)}', x_hat.type(torch.float32).cpu().squeeze().unsqueeze(0), model_sr)
+	# ensure dir of file f
+	os.makedirs(os.path.dirname(f.replace(args.test_dir, args.enhanced_dir)), exist_ok=True)
+	save(f.replace(args.test_dir, args.enhanced_dir), x_hat.type(torch.float32).cpu().squeeze().unsqueeze(0), model_sr)

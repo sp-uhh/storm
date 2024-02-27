@@ -44,9 +44,12 @@ def evaluate_model(model, num_eval_files, spec=False, audio=False, discriminativ
 			x_hat = x_hat[0].unsqueeze(0).cpu().numpy()
 			y = y[0].unsqueeze(0).cpu().numpy()
 
+		x_16k = librosa.resample(x[0], orig_sr=48000, target_sr=16000)
+		x_hat_16k = librosa.resample(x_hat[0], orig_sr=48000, target_sr=16000)
+
 		_si_sdr += si_sdr(x[0], x_hat[0])
-		_pesq += pesq(16000, x[0], x_hat[0], 'wb') 
-		_estoi += stoi(x[0], x_hat[0], 16000, extended=True)
+		_pesq += pesq(16000, x_hat_16k, x_16k, 'wb') 
+		_estoi += stoi(x[0], x_hat[0], 48000, extended=True)
 		
 		y, x_hat, x = torch.from_numpy(y), torch.from_numpy(x_hat), torch.from_numpy(x)
 		if spec and i < MAX_VIS_SAMPLES:

@@ -13,7 +13,7 @@ hop_length = 128
 
 stft_kwargs = {"n_fft": n_fft, "hop_length": hop_length, "window": torch.hann_window(n_fft), "center": True, "return_complex": True}
 
-def visualize_example(mix, estimate, target, idx_sample=0, epoch=0, name="", sample_rate=16000, hop_len=128, return_fig=False):
+def visualize_example(mix, estimate, target, idx_sample=0, epoch=0, name="", sample_rate=48000, hop_len=128, return_fig=False):
 	"""Visualize training targets and estimates of the Neural Network
 	Args:
 		- mix: Tensor [F, T]
