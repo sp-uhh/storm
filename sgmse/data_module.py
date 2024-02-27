@@ -228,13 +228,13 @@ class SpecsDataModule(pl.LightningDataModule):
 
 	@staticmethod
 	def add_argparse_args(parser):
-		parser.add_argument("--format", type=str, default="ears_wham", choices=["ears_wham", "wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
+		parser.add_argument("--format", type=str, default="wsj0", choices=["ears_wham", "wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
 		parser.add_argument("--base_dir", type=str, default="/data/lemercier/databases/wsj0+chime_julian/audio",
 			help="The base directory of the dataset. Should contain `train`, `valid` and `test` subdirectories, "
 				"each of which contain `clean` and `noisy` subdirectories.")
 		parser.add_argument("--batch_size", type=int, default=8, help="The batch size. 32 by default.")
-		parser.add_argument("--n_fft", type=int, default=1534, help="Number of FFT bins. 510 by default.")   # to assure 256 freq bins
-		parser.add_argument("--hop_length", type=int, default=384, help="Window hop length. 128 by default.")
+		parser.add_argument("--n_fft", type=int, default=510, help="Number of FFT bins. 510 by default.")   # to assure 256 freq bins
+		parser.add_argument("--hop_length", type=int, default=128, help="Window hop length. 128 by default.")
 		parser.add_argument("--num_frames", type=int, default=256, help="Number of frames for the dataset. 256 by default.")
 		parser.add_argument("--window", type=str, choices=("sqrthann", "hann"), default="hann", help="The window function to use for the STFT. 'sqrthann' by default.")
 		parser.add_argument("--num_workers", type=int, default=8, help="Number of workers to use for DataLoaders. 4 by default.")

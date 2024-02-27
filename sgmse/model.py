@@ -158,7 +158,7 @@ class ScoreModel(pl.LightningModule):
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
         return loss
 
-    def validation_step(self, batch, batch_idx, discriminative=False, sr=48000):
+    def validation_step(self, batch, batch_idx, discriminative=False, sr=16000):
         loss = self._step(batch, batch_idx)
         self.log('valid_loss', loss, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
 
@@ -602,7 +602,7 @@ class StochasticRegenerationModel(pl.LightningModule):
             self.log('train_loss_denoiser', loss_denoiser, on_step=True, on_epoch=True, batch_size=self.data_module.batch_size)
         return loss
 
-    def validation_step(self, batch, batch_idx, discriminative=False, sr=48000):
+    def validation_step(self, batch, batch_idx, discriminative=False, sr=16000):
         loss, loss_score, loss_denoiser = self._step(batch, batch_idx)
         self.log('valid_loss', loss, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)
         self.log('valid_loss_score', loss_score, on_step=False, on_epoch=True, batch_size=self.data_module.batch_size)

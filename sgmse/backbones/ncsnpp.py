@@ -41,8 +41,8 @@ class NCSNpp(nn.Module):
         scale_by_sigma = True,
         nonlinearity = 'swish',
         nf = 128,
-        ch_mult = (1, 1, 2, 2, 2, 2, 2),
-        num_res_blocks = 2,
+        ch_mult = (1, 2, 2, 2),
+        num_res_blocks = 1,
         attn_resolutions = (0,),
         resamp_with_conv = True,
         conditional = True,
@@ -64,7 +64,6 @@ class NCSNpp(nn.Module):
         **kwargs):
         super().__init__()
 
-        self.FORCE_STFT_OUT = False
         self.act = act = get_act(nonlinearity)
 
         self.nf = nf = nf
@@ -459,31 +458,7 @@ class NCSNppLarge(NCSNpp):
         **kwargs)
 
 
-@BackboneRegistry.register("ncsnpp12M")
-class NCSNpp12M(NCSNpp):
-    """Small-scale NCSN++ model. ~12M parameters"""
 
-    def __init__(self, **kwargs):
-        super().__init__( 
-        nf = 96,
-        ch_mult = (1, 2, 2, 1),
-        num_res_blocks = 1,
-        attn_resolutions = (0,),
-        **kwargs)
-
-
-
-@BackboneRegistry.register("ncsnpp6M")
-class NCSNpp6M(NCSNpp):
-    """Tiny-scale NCSN++ model. ~6M parameters"""
-
-    def __init__(self, **kwargs):
-        super().__init__( 
-        nf = 96,
-        ch_mult = (1, 1, 1, 1),
-        num_res_blocks = 1,
-        attn_resolutions = (0,),
-        **kwargs)
 
 
 @BackboneRegistry.register("ae-ncsnpp")

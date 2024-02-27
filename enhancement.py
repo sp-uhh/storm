@@ -43,7 +43,7 @@ os.makedirs(args.enhanced_dir, exist_ok=True)
 checkpoint_file = args.ckpt
 
 # Settings
-model_sr = 48000
+model_sr = 16000
 
 # Load score model 
 if args.mode == "storm":
