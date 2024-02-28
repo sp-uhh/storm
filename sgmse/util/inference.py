@@ -45,7 +45,7 @@ def evaluate_model(model, num_eval_files, spec=False, audio=False, discriminativ
 			y = y[0].unsqueeze(0).cpu().numpy()
 
 		_si_sdr += si_sdr(x[0], x_hat[0])
-		_pesq += pesq(16000, x_hat, x, 'wb') 
+		_pesq += pesq(16000, x_hat[0], x[0], 'wb') 
 		_estoi += stoi(x[0], x_hat[0], 16000, extended=True)
 		
 		y, x_hat, x = torch.from_numpy(y), torch.from_numpy(x_hat), torch.from_numpy(x)

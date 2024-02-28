@@ -43,7 +43,6 @@ if __name__ == '__main__':
 		parser_.add_argument("--sde", type=str, choices=SDERegistry.get_all_names(), default="ouve")
 		parser_.add_argument("--nolog", action='store_true', help="Turn off logging (for development purposes)")
 		parser_.add_argument("--logstdout", action="store_true", help="Whether to print the stdout in a separate file")
-		parser_.add_argument("--discriminatively", action="store_true", help="Train the backbone as a discriminative model instead")
 	temp_args, _ = base_parser.parse_known_args()
 
 	if "regen" in temp_args.mode:

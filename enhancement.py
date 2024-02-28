@@ -8,7 +8,6 @@ import torch
 import os
 from argparse import ArgumentParser
 import time
-# from pypapi import events, papi_high as high
 
 from sgmse.backbones.shared import BackboneRegistry
 from sgmse.data_module import SpecsDataModule

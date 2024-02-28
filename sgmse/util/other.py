@@ -8,7 +8,6 @@ import tqdm
 import torchaudio
 import matplotlib.pyplot as plt
 import time
-from pydub import AudioSegment
 import scipy.signal as ss
 
 stft_kwargs = {"n_fft": 510, "hop_length": 128, "window": torch.hann_window(510), "return_complex": True}
@@ -140,15 +139,6 @@ def snr_scale_factor(speech, noise, snr):
     factor = np.sqrt(speech_var / (noise_var * 10. ** (snr / 10.)))
 
     return factor
-
-def pydub_read(path, sr=16000):
-    y = AudioSegment.from_file(path)
-    y = y.set_frame_rate(sr)
-    channel_sounds = y.split_to_mono()
-    samples = [s.get_array_of_samples() for s in channel_sounds]
-    fp_arr = np.array(samples).T.astype(np.float32)
-    fp_arr /= np.iinfo(samples[0].typecode).max
-    return fp_arr
 
 def align(y, ref):
     l = np.argmax(ss.fftconvolve(ref.squeeze(), np.flip(y.squeeze()))) - (ref.shape[0] - 1)

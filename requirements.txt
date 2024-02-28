@@ -9,11 +9,8 @@ pystoi
 pytorch-lightning    
 torchaudio
 scipy    
-sdeint    
 SoundFile   
 tensorboard    
 torch   
 torch-ema  
 tqdm    
-pydub
-librosa

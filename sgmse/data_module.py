@@ -11,7 +11,6 @@ import numpy as np
 import torch.nn.functional as F
 import h5py
 import json
-from sgmse.util.other import snr_scale_factor, pydub_read, align
 
 SEED = 10
 np.random.seed(SEED)
@@ -60,8 +59,10 @@ class Specs(Dataset):
 		elif format == "ears_wham":
 			self.clean_files = sorted(glob(join(data_dir, subset, "clean", "**", "*.wav"), recursive=True))
 			self.noisy_files = sorted(glob(join(data_dir, subset, "noisy", "**", "*.wav"), recursive=True))
+		elif format == "reverb_vctk":
+			self.clean_files = sorted(glob(join(data_dir, subset, "clean", "**", "*.wav"), recursive=True))
+			self.noisy_files = sorted(glob(join(data_dir, subset, "reverberant", "**", "*.wav"), recursive=True))
 			
-
 		self.dummy = dummy
 		self.num_frames = num_frames
 		self.shuffle_spec = shuffle_spec
@@ -172,12 +173,13 @@ class SpecsDataModule(pl.LightningDataModule):
 			**self.stft_kwargs, **self.kwargs
 		)
 		if stage == 'fit' or stage is None:
-			self.train_set = Specs(self.base_dir, 'train', self.dummy, True, 
+			self.train_set = Specs(self.base_dir, 'train', self.dummy, True,  
 				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
 			self.valid_set = Specs(self.base_dir, 'valid', self.dummy, False, 
 				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
+			
 		if stage == 'test' or stage is None:
 			self.test_set = Specs(self.base_dir, 'test', self.dummy, False, 
 				format=self.format, spatial_channels=self.spatial_channels, 
@@ -228,7 +230,7 @@ class SpecsDataModule(pl.LightningDataModule):
 
 	@staticmethod
 	def add_argparse_args(parser):
-		parser.add_argument("--format", type=str, default="wsj0", choices=["ears_wham", "wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
+		parser.add_argument("--format", type=str, default="wsj0", choices=["reverb_vctk", "ears_wham", "wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
 		parser.add_argument("--base_dir", type=str, default="/data/lemercier/databases/wsj0+chime_julian/audio",
 			help="The base directory of the dataset. Should contain `train`, `valid` and `test` subdirectories, "
 				"each of which contain `clean` and `noisy` subdirectories.")
@@ -239,7 +241,7 @@ class SpecsDataModule(pl.LightningDataModule):
 		parser.add_argument("--window", type=str, choices=("sqrthann", "hann"), default="hann", help="The window function to use for the STFT. 'sqrthann' by default.")
 		parser.add_argument("--num_workers", type=int, default=8, help="Number of workers to use for DataLoaders. 4 by default.")
 		parser.add_argument("--dummy", action="store_true", help="Use reduced dummy dataset for prototyping.")
-		parser.add_argument("--spec_factor", type=float, default=0.33, help="Factor to multiply complex STFT coefficients by.") ##### In Simon's current impl, this is 0.15 !
+		parser.add_argument("--spec_factor", type=float, default=0.15, help="Factor to multiply complex STFT coefficients by.")
 		parser.add_argument("--spec_abs_exponent", type=float, default=0.5,
 			help="Exponent e for the transformation abs(z)**e * exp(1j*angle(z)). "
 				"1 by default; set to values < 1 to bring out quieter features.")

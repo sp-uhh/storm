@@ -37,6 +37,10 @@ default_initializer = layers.default_init
 class NCSNpp(nn.Module):
     """NCSN++ model"""
 
+    @staticmethod
+    def add_argparse_args(parser):
+        return parser
+    
     def __init__(self, 
         scale_by_sigma = True,
         nonlinearity = 'swish',
@@ -65,6 +69,7 @@ class NCSNpp(nn.Module):
         super().__init__()
 
         self.act = act = get_act(nonlinearity)
+        self.FORCE_STFT_OUT = False
 
         self.nf = nf = nf
         ch_mult = ch_mult
@@ -466,6 +471,10 @@ class AutoEncodeNCSNpp(nn.Module):
     #NCSN++ model with a learnt encoder.
     #Takes waveform inputs instead of the STFTs
 
+    @staticmethod
+    def add_argparse_args(parser):
+        return parser
+    
     def __init__(self, 
         scale_by_sigma = True,
         nonlinearity = 'swish',
@@ -492,6 +501,7 @@ class AutoEncodeNCSNpp(nn.Module):
         discriminative = True,
         **kwargs):
         super().__init__()
+        self.FORCE_STFT_OUT = False
         self.act = act = get_act(nonlinearity)
 
         self.nf = nf = nf
