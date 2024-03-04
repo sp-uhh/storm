@@ -149,6 +149,7 @@ class SpecsH5(Dataset):
 		self.format = format
 		self.spatial_channels = spatial_channels
 		self.return_time = return_time
+
 		if self.data_dir.endswith(".h5"):
 			assert os.path.exists(self.data_dir), f"File {self.data_dir} does not exist"
 			h5_file = h5py.File(self.data_dir, 'r')
@@ -158,7 +159,8 @@ class SpecsH5(Dataset):
 			assert os.path.exists(self.data_dir+".h5"), f"File {self.data_dir}.h5 does not exist"
 			h5_file = h5py.File(self.data_dir+".h5", 'r')
 		self.clean_data = h5_file[subset]['clean']
-		self.noisy_data = h5_file[subset]['reverb'] if "reverb" in format else h5_file[subset]['noisy']
+		self.noisy_data = h5_file[subset]['reverberant'] if "reverb" in format else h5_file[subset]['noisy']
+		self.time_idxs = h5_file[subset]['time_idxs']
 
 		self.dummy = dummy
 		self.num_frames = num_frames
@@ -172,12 +174,10 @@ class SpecsH5(Dataset):
 		assert self.stft_kwargs.get("center", None) == True, "'center' must be True for current implementation"
 
 	def __getitem__(self, i, raw=False):
-		x = torch.from_numpy(self.clean_data[i]).unsqueeze(0)
-		y = torch.from_numpy(self.noisy_data[i]).unsqueeze(0)
+		idx_start, idx_end = self.time_idxs[i], self.time_idxs[i+1] #len is len(self.time_idxs) - 1 so no risk here
+		x = torch.from_numpy(self.clean_data[idx_start: idx_end]).unsqueeze(0)
+		y = torch.from_numpy(self.noisy_data[idx_start: idx_end]).unsqueeze(0)
 
-		min_len = min(x.size(-1), y.size(-1))
-		x, y = x[..., : min_len], y[..., : min_len] 
-		
 		if raw:
 			return x, y
 
@@ -218,9 +218,9 @@ class SpecsH5(Dataset):
 	def __len__(self):
 		if self.dummy:
 			# for debugging shrink the data set sizer
-			return int(self.clean_data.shape[0]/10)	
+			return int((self.time_idxs.shape[0] - 1)/10)	
 		else:
-			self.clean_data.shape[0]
+			return self.time_idxs.shape[0] - 1
 
 
 
