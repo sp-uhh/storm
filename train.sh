@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8          # We have 64 total in spgpu2 and 32 in spgpu1, making it 8 cores per GPU process in both cases
 #SBATCH --partition=all
 #SBATCH --nodelist=spgpu1          # Or set it to spgpu1
-#SBATCH --job-name=ncsnpp-vctk-reverb
+#SBATCH --job-name=sgmse+-vctk-reverb
 #SBATCH --output=.slurm/%x-%j.out    # Save to folder ./jobs, %x means the job name. You may need to create this folder
 #SBATCH --error=.slurm/%x-%j.err
 #SBATCH --time=4-00:00             # Limit job to 4 days
@@ -29,8 +29,18 @@ fi;
 base_dir=$data_dir/VCTK-Reverb
 format=reverb_vctk
 
+# srun python3 train.py \
+#     --mode denoiser-only \
+#     --base_dir $base_dir \
+#     --format $format \
+#     --num_frames 512 \
+#     --batch_size 4 \
+#     --devices 4 \
+#     --nolog
+
+
 srun python3 train.py \
-    --mode denoiser-only \
+    --mode score-only \
     --base_dir $base_dir \
     --format $format \
     --num_frames 512 \

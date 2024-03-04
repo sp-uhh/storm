@@ -458,7 +458,7 @@ class StochasticRegenerationModel(pl.LightningModule):
         parser.add_argument("--loss_type_denoiser", type=str, default="mse", choices=("none", "mse", "mae", "sisdr", "mse_cplx+mag", "mse_time+mag"), help="The type of loss function to use.")
         parser.add_argument("--loss_type_score", type=str, default="mse", choices=("none", "mse", "mae"), help="The type of loss function to use.")
         parser.add_argument("--weighting_denoiser_to_score", type=float, default=0.5, help="a, as in L = a * L_denoiser + (1-a) * .")
-        parser.add_argument("--condition", default="noisy", choices=["noisy", "post_denoiser", "both"])
+        parser.add_argument("--condition", default="both", choices=["noisy", "post_denoiser", "both"])
         parser.add_argument("--spatial_channels", type=int, default=1)
         return parser
 
