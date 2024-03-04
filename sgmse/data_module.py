@@ -11,7 +11,6 @@ import numpy as np
 import torch.nn.functional as F
 import h5py
 import json
-from sgmse.util.other import snr_scale_factor, pydub_read, align
 
 SEED = 10
 np.random.seed(SEED)
@@ -57,7 +56,13 @@ class Specs(Dataset):
 			self.clean_files = sorted(glob(join(data_dir, "audio", dic_correspondence_subsets[subset]) + '/clean/*.wav'))
 			self.noisy_files = sorted(glob(join(data_dir, "audio", dic_correspondence_subsets[subset]) + '/noisy/*.wav'))
 			self.transcriptions = sorted(glob(join(data_dir, "transcriptions", dic_correspondence_subsets[subset]) + '/*.txt'))
-
+		elif format == "ears_wham":
+			self.clean_files = sorted(glob(join(data_dir, subset, "clean", "**", "*.wav"), recursive=True))
+			self.noisy_files = sorted(glob(join(data_dir, subset, "noisy", "**", "*.wav"), recursive=True))
+		elif format == "reverb_vctk":
+			self.clean_files = sorted(glob(join(data_dir, subset, "clean", "**", "*.wav"), recursive=True))
+			self.noisy_files = sorted(glob(join(data_dir, subset, "reverberant", "**", "*.wav"), recursive=True))
+			
 		self.dummy = dummy
 		self.num_frames = num_frames
 		self.shuffle_spec = shuffle_spec
@@ -68,10 +73,6 @@ class Specs(Dataset):
 		self.stft_kwargs = stft_kwargs
 		self.hop_length = self.stft_kwargs["hop_length"]
 		assert self.stft_kwargs.get("center", None) == True, "'center' must be True for current implementation"
-
-	def _open_hdf5(self):
-		self.meta_data = json.load(open(sorted(glob(join(self.data_dir, f"*.json")))[-1], "r"))
-		self.prep_file = h5py.File(sorted(glob(join(self.data_dir, f"*.hdf5")))[-1], 'r')
 
 	def __getitem__(self, i, raw=False):
 		x, sr = load(self.clean_files[i])			
@@ -136,6 +137,92 @@ class Specs(Dataset):
 
 
 
+class SpecsH5(Dataset):
+	def __init__(
+		self, data_dir, subset, dummy, shuffle_spec, num_frames, format,
+		normalize_audio=True, spec_transform=None, stft_kwargs=None, spatial_channels=1, 
+		return_time=False,
+		**ignored_kwargs
+	):
+		self.data_dir = data_dir
+		self.subset = subset
+		self.format = format
+		self.spatial_channels = spatial_channels
+		self.return_time = return_time
+		if self.data_dir.endswith(".h5"):
+			assert os.path.exists(self.data_dir), f"File {self.data_dir} does not exist"
+			h5_file = h5py.File(self.data_dir, 'r')
+		else:
+			if self.data_dir.endswith("/") or self.data_dir.endswith("\\"):
+				self.data_dir = self.data_dir[:-1]
+			assert os.path.exists(self.data_dir+".h5"), f"File {self.data_dir}.h5 does not exist"
+			h5_file = h5py.File(self.data_dir+".h5", 'r')
+		self.clean_data = h5_file[subset]['clean']
+		self.noisy_data = h5_file[subset]['reverb'] if "reverb" in format else h5_file[subset]['noisy']
+
+		self.dummy = dummy
+		self.num_frames = num_frames
+		self.shuffle_spec = shuffle_spec
+		self.normalize_audio = normalize_audio
+		self.spec_transform = spec_transform
+
+		assert all(k in stft_kwargs.keys() for k in ["n_fft", "hop_length", "center", "window"]), "misconfigured STFT kwargs"
+		self.stft_kwargs = stft_kwargs
+		self.hop_length = self.stft_kwargs["hop_length"]
+		assert self.stft_kwargs.get("center", None) == True, "'center' must be True for current implementation"
+
+	def __getitem__(self, i, raw=False):
+		x = torch.from_numpy(self.clean_data[i]).unsqueeze(0)
+		y = torch.from_numpy(self.noisy_data[i]).unsqueeze(0)
+
+		min_len = min(x.size(-1), y.size(-1))
+		x, y = x[..., : min_len], y[..., : min_len] 
+		
+		if raw:
+			return x, y
+
+		normfac = y.abs().max()
+
+		# formula applies for center=True
+		target_len = (self.num_frames - 1) * self.hop_length
+		current_len = x.size(-1)
+		pad = max(target_len - current_len, 0)
+		if pad == 0:
+			# extract random part of the audio file
+			if self.shuffle_spec:
+				start = int(np.random.uniform(0, current_len-target_len))
+			else:
+				start = int((current_len-target_len)/2)
+			x = x[..., start:start+target_len]
+			y = y[..., start:start+target_len]
+		else:
+			# pad audio if the length T is smaller than num_frames
+			x = F.pad(x, (pad//2, pad//2+(pad%2)), mode='constant')
+			y = F.pad(y, (pad//2, pad//2+(pad%2)), mode='constant')
+
+		if self.normalize_audio:
+			# normalize both based on noisy speech, to ensure same clean signal power in x and y.
+			x = x / normfac
+			y = y / normfac
+
+		if self.return_time:
+			return x, y
+
+		X = torch.stft(x, **self.stft_kwargs)
+		Y = torch.stft(y, **self.stft_kwargs)
+
+		X, Y = self.spec_transform(X), self.spec_transform(Y)
+
+		return X, Y
+
+	def __len__(self):
+		if self.dummy:
+			# for debugging shrink the data set sizer
+			return int(self.clean_data.shape[0]/10)	
+		else:
+			self.clean_data.shape[0]
+
+
 
 class SpecsDataModule(pl.LightningDataModule):
 	def __init__(
@@ -167,15 +254,21 @@ class SpecsDataModule(pl.LightningDataModule):
 			stft_kwargs=self.stft_kwargs, num_frames=self.num_frames, spec_transform=self.spec_fwd,
 			**self.stft_kwargs, **self.kwargs
 		)
+		if self.base_dir.endswith(".h5"):
+			dataset_cls = SpecsH5
+		else:
+			dataset_cls = Specs
+
 		if stage == 'fit' or stage is None:
-			self.train_set = Specs(self.base_dir, 'train', self.dummy, True, 
+			self.train_set = dataset_cls(self.base_dir, 'train', self.dummy, True,  
 				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
-			self.valid_set = Specs(self.base_dir, 'valid', self.dummy, False, 
+			self.valid_set = dataset_cls(self.base_dir, 'valid', self.dummy, False, 
 				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
+			
 		if stage == 'test' or stage is None:
-			self.test_set = Specs(self.base_dir, 'test', self.dummy, False, 
+			self.test_set = dataset_cls(self.base_dir, 'test', self.dummy, False, 
 				format=self.format, spatial_channels=self.spatial_channels, 
 				return_time=self.return_time, **specs_kwargs)
 
@@ -224,7 +317,7 @@ class SpecsDataModule(pl.LightningDataModule):
 
 	@staticmethod
 	def add_argparse_args(parser):
-		parser.add_argument("--format", type=str, default="wsj0", choices=["wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
+		parser.add_argument("--format", type=str, default="wsj0", choices=["reverb_vctk", "ears_wham", "wsj0", "vctk", "dns", "reverb_wsj0", "timit", "voicebank"], help="File paths follow the DNS data description.")
 		parser.add_argument("--base_dir", type=str, default="/data/lemercier/databases/wsj0+chime_julian/audio",
 			help="The base directory of the dataset. Should contain `train`, `valid` and `test` subdirectories, "
 				"each of which contain `clean` and `noisy` subdirectories.")
@@ -235,7 +328,7 @@ class SpecsDataModule(pl.LightningDataModule):
 		parser.add_argument("--window", type=str, choices=("sqrthann", "hann"), default="hann", help="The window function to use for the STFT. 'sqrthann' by default.")
 		parser.add_argument("--num_workers", type=int, default=8, help="Number of workers to use for DataLoaders. 4 by default.")
 		parser.add_argument("--dummy", action="store_true", help="Use reduced dummy dataset for prototyping.")
-		parser.add_argument("--spec_factor", type=float, default=0.33, help="Factor to multiply complex STFT coefficients by.") ##### In Simon's current impl, this is 0.15 !
+		parser.add_argument("--spec_factor", type=float, default=0.15, help="Factor to multiply complex STFT coefficients by.")
 		parser.add_argument("--spec_abs_exponent", type=float, default=0.5,
 			help="Exponent e for the transformation abs(z)**e * exp(1j*angle(z)). "
 				"1 by default; set to values < 1 to bring out quieter features.")

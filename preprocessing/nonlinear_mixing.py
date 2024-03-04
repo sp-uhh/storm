@@ -68,7 +68,7 @@ params = {
     "release_range": [5, 500],
     "sc_gain_range": [0.8, 1.2],
     "clipping_threshold_range": [0.85, 1.],
-    "clipping_chance": 1.,
+    "clipping_chance": .75,
 }
 
 # ROOT = "" ## put your root directory here

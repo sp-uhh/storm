@@ -37,6 +37,10 @@ default_initializer = layers.default_init
 class NCSNpp(nn.Module):
     """NCSN++ model"""
 
+    @staticmethod
+    def add_argparse_args(parser):
+        return parser
+    
     def __init__(self, 
         scale_by_sigma = True,
         nonlinearity = 'swish',
@@ -60,13 +64,12 @@ class NCSNpp(nn.Module):
         input_channels = 4,
         spatial_channels = 1,
         dropout = .0,
-        centered = False,
         discriminative = False,
         **kwargs):
         super().__init__()
 
-        self.FORCE_STFT_OUT = False
         self.act = act = get_act(nonlinearity)
+        self.FORCE_STFT_OUT = False
 
         self.nf = nf = nf
         ch_mult = ch_mult
@@ -86,7 +89,6 @@ class NCSNpp(nn.Module):
             input_channels = 2  # y.real, y.imag
 
         self.conditional = conditional  # noise-conditional
-        self.centered = centered
         self.scale_by_sigma = scale_by_sigma
         fir = fir
         fir_kernel = fir_kernel
@@ -272,11 +274,6 @@ class NCSNpp(nn.Module):
 
         self.all_modules = nn.ModuleList(modules)
 
-    @staticmethod
-    def add_argparse_args(parser):
-        # parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        # parser.add_argument("--no-mask", action="store_true", help="The network should output a direct estimate, not a mask (for restoration/bwe/plc)")
-        return parser
 
     def forward(self, x, time_cond=None):
         """
@@ -317,10 +314,6 @@ class NCSNpp(nn.Module):
             m_idx += 1
         else:
             temb = None
-
-        if not self.centered:
-            # If input data is in [0, 1]
-            x = 2 * x - 1.
 
         # Downsampling block
         input_pyramid = None
@@ -469,48 +462,8 @@ class NCSNppLarge(NCSNpp):
         attn_resolutions = (16,),
         **kwargs)
 
-    @staticmethod
-    def add_argparse_args(parser):
-        # parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        return parser
 
 
-
-@BackboneRegistry.register("ncsnpp12M")
-class NCSNpp12M(NCSNpp):
-    """Small-scale NCSN++ model. ~12M parameters"""
-
-    def __init__(self, **kwargs):
-        super().__init__( 
-        nf = 96,
-        ch_mult = (1, 2, 2, 1),
-        num_res_blocks = 1,
-        attn_resolutions = (0,),
-        **kwargs)
-
-    @staticmethod
-    def add_argparse_args(parser):
-        # parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        return parser
-
-
-
-@BackboneRegistry.register("ncsnpp6M")
-class NCSNpp6M(NCSNpp):
-    """Tiny-scale NCSN++ model. ~6M parameters"""
-
-    def __init__(self, **kwargs):
-        super().__init__( 
-        nf = 96,
-        ch_mult = (1, 1, 1, 1),
-        num_res_blocks = 1,
-        attn_resolutions = (0,),
-        **kwargs)
-
-    @staticmethod
-    def add_argparse_args(parser):
-        # parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        return parser
 
 
 @BackboneRegistry.register("ae-ncsnpp")
@@ -518,6 +471,10 @@ class AutoEncodeNCSNpp(nn.Module):
     #NCSN++ model with a learnt encoder.
     #Takes waveform inputs instead of the STFTs
 
+    @staticmethod
+    def add_argparse_args(parser):
+        return parser
+    
     def __init__(self, 
         scale_by_sigma = True,
         nonlinearity = 'swish',
@@ -541,10 +498,10 @@ class AutoEncodeNCSNpp(nn.Module):
         input_channels = 1,
         spatial_channels = 1,
         dropout = .0,
-        centered = False,
         discriminative = True,
         **kwargs):
         super().__init__()
+        self.FORCE_STFT_OUT = False
         self.act = act = get_act(nonlinearity)
 
         self.nf = nf = nf
@@ -565,7 +522,6 @@ class AutoEncodeNCSNpp(nn.Module):
             input_channels = 1 # no real or imag here, output of real-valued learnt encoder
 
         self.conditional = conditional  # noise-conditional
-        self.centered = centered
         self.scale_by_sigma = scale_by_sigma
         fir = fir
         fir_kernel = fir_kernel
@@ -754,12 +710,6 @@ class AutoEncodeNCSNpp(nn.Module):
 
         self.all_modules = nn.ModuleList(modules)
 
-    @staticmethod
-    def add_argparse_args(parser):
-        parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        parser.add_argument("--no-mask", action="store_true", help="The network should output a direct estimate, not a mask (for restoration/bwe/plc)")
-        return parser
-
     def forward(self, x_time, time_cond):
         #x_time: b,D=1,T: real-valued waverform input
         # timestep/noise_level embedding; only for continuous training
@@ -794,10 +744,6 @@ class AutoEncodeNCSNpp(nn.Module):
             m_idx += 1
         else:
             temb = None
-
-        if not self.centered:
-            # If input data is in [0, 1]
-            x = 2 * x - 1.
 
         # Downsampling block
         input_pyramid = None
@@ -923,9 +869,3 @@ class AutoEncodeNCSNpp(nn.Module):
         h = h[..., : T_orig]
 
         return h
-
-    @staticmethod
-    def add_argparse_args(parser):
-        parser.add_argument("--centered", action="store_true", help="The data is already centered [-1, 1]")
-        parser.add_argument("--no-bias", action="store_true", help="The network layers do not permit any bias. forces the output to be centered and avoid these abuzz artifacts")
-        return parser

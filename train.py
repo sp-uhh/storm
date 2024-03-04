@@ -4,8 +4,7 @@ import os
 import sys
 
 import pytorch_lightning as pl
-from pytorch_lightning.strategies import DDPStrategy
-from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import torch
 
@@ -57,7 +56,11 @@ if __name__ == '__main__':
 	backbone_cls_denoiser = BackboneRegistry.get_by_name(temp_args.backbone_denoiser) if temp_args.backbone_denoiser != "none" else None
 	backbone_cls_score = BackboneRegistry.get_by_name(temp_args.backbone_score) if temp_args.backbone_score != "none" else None
 	sde_class = SDERegistry.get_by_name(temp_args.sde)
-	parser = pl.Trainer.add_argparse_args(parser)
+	trainer_parser = parser.add_argument_group("Trainer", description="Lightning Trainer")
+	trainer_parser.add_argument("--accelerator", type=str, default="gpu", help="Supports passing different accelerator types.")
+	trainer_parser.add_argument("--devices", default="auto", help="How many gpus to use.")
+	trainer_parser.add_argument("--accumulate_grad_batches", type=int, default=1, help="Accumulate gradients.")
+ 
 	model_cls.add_argparse_args(
 		parser.add_argument_group(model_cls.__name__, description=model_cls.__name__))
 	sde_class.add_argparse_args(
@@ -144,9 +147,9 @@ if __name__ == '__main__':
 			save_top_k=1, monitor="ValidationPESQ", mode="max", filename='{epoch}-{pesq:.2f}'))
 
 	# Initialize the Trainer and the DataModule
-	trainer = pl.Trainer.from_argparse_args(
-		arg_groups['pl.Trainer'],
-		strategy=DDPStrategy(find_unused_parameters=False), 
+	trainer = pl.Trainer(
+		**vars(arg_groups['Trainer']),
+		strategy="ddp_find_unused_parameters_true", 
 		logger=logger,
 		log_every_n_steps=10, num_sanity_val_steps=0, 
 		callbacks=callbacks,
