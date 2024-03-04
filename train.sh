@@ -45,5 +45,4 @@ srun python3 train.py \
     --format $format \
     --num_frames 512 \
     --batch_size 4 \
-    --devices 4 \
-    --nolog
+    --devices 4
