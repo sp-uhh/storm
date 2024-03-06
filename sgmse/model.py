@@ -72,6 +72,44 @@ class ScoreModel(pl.LightningModule):
         parser.add_argument("--loss_type", type=str, default="mse", choices=("mse", "mae", "gaussian_entropy", "kristina", "sisdr", "time_mse"), help="The type of loss function to use.")
         parser.add_argument("--spatial_channels", type=int, default=1)
         return parser
+    
+    def set_epoch(self, epoch: int):
+        self.set_current_epoch(epoch) # This is being loaded from the model
+        total_batch_idx = self.current_epoch * len(self.trainer.train_dataloader)
+        self.set_total_batch_idx(total_batch_idx)
+        global_step = total_batch_idx * self.optimizers_count
+        self.set_global_step(global_step)
+
+    def set_current_epoch(self, epoch: int):
+        print(f"Setting current epoch to {epoch}")
+        self.trainer.fit_loop.epoch_progress.current.completed = epoch
+        assert self.current_epoch == epoch, f"{self.current_epoch} != {epoch}"
+
+    def set_global_step(self, global_step: int):
+        print(f"Setting global step to {global_step}")
+        self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.total.completed = (
+            global_step
+        )
+        self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.total.completed = (
+            global_step
+        )
+        assert self.global_step == global_step, f"{self.global_step} != {global_step}"
+
+    def set_total_batch_idx(self, total_batch_idx: int):
+        print(f"Setting total batch idx to {total_batch_idx}")
+        self.trainer.fit_loop.epoch_loop.batch_progress.total.ready = (
+            total_batch_idx + 1
+        )
+        self.trainer.fit_loop.epoch_loop.batch_progress.total.completed = (
+            total_batch_idx
+        )
+        assert (
+            self.total_batch_idx == total_batch_idx + 1
+        ), f"{self.total_batch_idx} != {total_batch_idx + 1}"
+
+    @property
+    def total_batch_idx(self) -> int:
+        return self.trainer.fit_loop.epoch_loop.total_batch_idx + 1
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
