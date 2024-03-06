@@ -73,12 +73,13 @@ class ScoreModel(pl.LightningModule):
         parser.add_argument("--spatial_channels", type=int, default=1)
         return parser
     
-    def set_epoch(self, epoch: int):
-        self.set_current_epoch(epoch) # This is being loaded from the model
-        total_batch_idx = self.current_epoch * len(self.trainer.train_dataloader)
-        self.set_total_batch_idx(total_batch_idx)
-        global_step = total_batch_idx * self.optimizers_count
-        self.set_global_step(global_step)
+    def on_start(self):
+        if hasattr(self, "_temp_epoch") and self._temp_epoch > 0:
+            self.set_current_epoch(self._temp_epoch) # This is being loaded from the model
+            total_batch_idx = self.current_epoch * len(self.trainer.train_dataloader)
+            self.set_total_batch_idx(total_batch_idx)
+            global_step = total_batch_idx * self.optimizers_count
+            self.set_global_step(global_step)
 
     def set_current_epoch(self, epoch: int):
         print(f"Setting current epoch to {epoch}")

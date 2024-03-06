@@ -36,9 +36,17 @@ srun python3 train.py \
     --num_frames 512 \
     --batch_size 4 \
     --devices 4 \
-    --resume_from_checkpoint /data1/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt
+    --resume_from_checkpoint /export/home/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt
 #     --nolog
 
+python3 train.py \
+    --mode denoiser-only \
+    --base_dir /data/lemercier/databases/reverb_wsj0+chime/audio \
+    --format reverb_wsj0 \
+    --num_frames 128 \
+    --batch_size 1 \
+    --devices 1 \
+    --resume_from_checkpoint tmp_ckpt.ckpt
 
 # srun python3 train.py \
 #     --mode score-only \
