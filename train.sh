@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8          # We have 64 total in spgpu2 and 32 in spgpu1, making it 8 cores per GPU process in both cases
 #SBATCH --partition=all
 #SBATCH --nodelist=spgpu1          # Or set it to spgpu1
-#SBATCH --job-name=sgmse+-vctk-reverb
+#SBATCH --job-name=ncsnpp-vctk-reverb_resume89
 #SBATCH --output=.slurm/%x-%j.out    # Save to folder ./jobs, %x means the job name. You may need to create this folder
 #SBATCH --error=.slurm/%x-%j.err
 #SBATCH --time=4-00:00             # Limit job to 4 days
@@ -29,20 +29,21 @@ fi;
 base_dir=$data_dir/VCTK-Reverb
 format=reverb_vctk
 
-# srun python3 train.py \
-#     --mode denoiser-only \
-#     --base_dir $base_dir \
-#     --format $format \
-#     --num_frames 512 \
-#     --batch_size 4 \
-#     --devices 4 \
-#     --nolog
-
-
 srun python3 train.py \
-    --mode score-only \
+    --mode denoiser-only \
     --base_dir $base_dir \
     --format $format \
     --num_frames 512 \
     --batch_size 4 \
-    --devices 4
+    --devices 4 \
+    --resume_from_checkpoint /data1/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt
+#     --nolog
+
+
+# srun python3 train.py \
+#     --mode score-only \
+#     --base_dir $base_dir \
+#     --format $format \
+#     --num_frames 512 \
+#     --batch_size 4 \
+#     --devices 4

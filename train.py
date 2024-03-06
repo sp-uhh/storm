@@ -40,6 +40,8 @@ if __name__ == '__main__':
 		parser_.add_argument("--backbone_score", type=str, choices=["none"] + BackboneRegistry.get_all_names(), default="ncsnpp")
 		parser_.add_argument("--pretrained_score", default=None, help="checkpoint for score")
 
+		parser_.add_argument("--resume_from_checkpoint", type=str, default=None)
+
 		parser_.add_argument("--sde", type=str, choices=SDERegistry.get_all_names(), default="ouve")
 		parser_.add_argument("--nolog", action='store_true', help="Turn off logging (for development purposes)")
 		parser_.add_argument("--logstdout", action="store_true", help="Whether to print the stdout in a separate file")
@@ -86,54 +88,60 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	arg_groups = get_argparse_groups(parser)
 
-	# Initialize logger, trainer, model, datamodule
+	# Load model or initialize
+	if args.resume_from_checkpoint is not None:
+		assert os.path.exists(args.resume_from_checkpoint)
+		model = model_cls.load_from_checkpoint(args.resume_from_checkpoint)
+	else:
+		# Initialize logger, trainer, model, datamodule
+		if "regen" in temp_args.mode:
+			model = model_cls(
+				mode=args.mode, backbone_denoiser=args.backbone_denoiser, backbone_score=args.backbone_score, sde=args.sde, data_module_cls=data_module_cls,
+				**{
+					**vars(arg_groups['StochasticRegenerationModel']),
+					**vars(arg_groups['SDE']),
+					**vars(arg_groups['BackboneDenoiser']),
+					**vars(arg_groups['BackboneScore']),
+					**vars(arg_groups['DataModule'])
+				},
+				nolog=args.nolog
+			)
+			if temp_args.pretrained_denoiser is not None:
+				model.load_denoiser_model(temp_args.pretrained_denoiser)
+			if temp_args.pretrained_score is not None:
+				model.load_score_model(torch.load(temp_args.pretrained_score))
+		
+		elif temp_args.mode == "score-only": 
+			model = model_cls(
+				backbone=args.backbone_score, sde=args.sde, data_module_cls=data_module_cls,
+				**{
+					**vars(arg_groups['ScoreModel']),
+					**vars(arg_groups['SDE']),
+					**vars(arg_groups['BackboneScore']),
+					**vars(arg_groups['DataModule'])
+				},
+				nolog=args.nolog
+			)
+
+		elif temp_args.mode == "denoiser-only": 
+			model = model_cls(
+				backbone=args.backbone_denoiser, sde=args.sde, data_module_cls=data_module_cls, discriminative=True,
+				**{
+					**vars(arg_groups['DiscriminativeModel']),
+					**vars(arg_groups['SDE']),
+					**vars(arg_groups['BackboneDenoiser']),
+					**vars(arg_groups['DataModule'])
+				},
+				nolog=args.nolog
+			)
+
+	# Logging
 	if "regen" in temp_args.mode:
-		model = model_cls(
-			mode=args.mode, backbone_denoiser=args.backbone_denoiser, backbone_score=args.backbone_score, sde=args.sde, data_module_cls=data_module_cls,
-			**{
-				**vars(arg_groups['StochasticRegenerationModel']),
-				**vars(arg_groups['SDE']),
-				**vars(arg_groups['BackboneDenoiser']),
-				**vars(arg_groups['BackboneScore']),
-				**vars(arg_groups['DataModule'])
-			},
-			nolog=args.nolog
-		)
-		if temp_args.pretrained_denoiser is not None:
-			model.load_denoiser_model(temp_args.pretrained_denoiser)
-		if temp_args.pretrained_score is not None:
-			model.load_score_model(torch.load(temp_args.pretrained_score))
-		data_tag = model.data_module.base_dir.strip().split("/")[-3] if model.data_module.format == "whamr" else model.data_module.base_dir.strip().split("/")[-1] 
-		logging_name = f"mode={model.mode}_sde={sde_class.__name__}_score={temp_args.backbone_score}_denoiser={temp_args.backbone_denoiser}_condition={model.condition}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
-	
+		logging_name = f"mode={args.mode}_sde={sde_class.__name__}_score={temp_args.backbone_score}_denoiser={temp_args.backbone_denoiser}_condition={model.condition}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
 	elif temp_args.mode == "score-only": 
-		model = model_cls(
-			backbone=args.backbone_score, sde=args.sde, data_module_cls=data_module_cls,
-			**{
-				**vars(arg_groups['ScoreModel']),
-				**vars(arg_groups['SDE']),
-				**vars(arg_groups['BackboneScore']),
-				**vars(arg_groups['DataModule'])
-			},
-			nolog=args.nolog
-		)
-		data_tag = model.data_module.base_dir.strip().split("/")[-3] if model.data_module.format == "whamr" else model.data_module.base_dir.strip().split("/")[-1] 
-		logging_name = f"mode=score-only_sde={sde_class.__name__}_backbone={args.backbone_score}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
-
+		logging_name = f"mode={args.mode}_sde={sde_class.__name__}_backbone={args.backbone_score}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
 	elif temp_args.mode == "denoiser-only": 
-		model = model_cls(
-			backbone=args.backbone_denoiser, sde=args.sde, data_module_cls=data_module_cls, discriminative=True,
-			**{
-				**vars(arg_groups['DiscriminativeModel']),
-				**vars(arg_groups['SDE']),
-				**vars(arg_groups['BackboneDenoiser']),
-				**vars(arg_groups['DataModule'])
-			},
-			nolog=args.nolog
-		)
-		data_tag = model.data_module.base_dir.strip().split("/")[-3] if model.data_module.format == "whamr" else model.data_module.base_dir.strip().split("/")[-1] 
-		logging_name = f"mode=denoiser-only_sde={sde_class.__name__}_backbone={args.backbone_denoiser}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
-
+		logging_name = f"mode={args.mode}_sde={sde_class.__name__}_backbone={args.backbone_denoiser}_data={model.data_module.format}_ch={model.data_module.spatial_channels}"
 	logger = TensorBoardLogger(save_dir=f"./.logs/", name=logging_name, flush_secs=30) if not args.nolog else None
 
 	# Callbacks
