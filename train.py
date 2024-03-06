@@ -93,7 +93,6 @@ if __name__ == '__main__':
 		assert os.path.exists(args.resume_from_checkpoint)
 		model = model_cls.load_from_checkpoint(args.resume_from_checkpoint)
 		ckpt = torch.load(args.resume_from_checkpoint)
-		# model.current_epoch = ckpt['epoch']
 		model._temp_epoch = ckpt['epoch']
 
 	else:
