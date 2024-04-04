@@ -351,4 +351,4 @@ enh2gpu2.job
 .wav
 .web
 .env
-.slurm
+.slurmlogs
