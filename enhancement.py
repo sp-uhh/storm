@@ -1,7 +1,7 @@
 import numpy as np
 import glob
 
-from tensorboard import summary
+# from tensorboard import summary
 from tqdm import tqdm
 from torchaudio import load, save
 import torch
@@ -27,12 +27,14 @@ for parser_ in (base_parser, parser):
 	parser_.add_argument("--test_dir", type=str, required=True, help="Directory containing your corrupted files to enhance.")
 	parser_.add_argument("--enhanced_dir", type=str, required=True, help="Where to write your cleaned files.")
 	parser_.add_argument("--ckpt", type=str, required=True)
-	parser_.add_argument("--mode", required=True, choices=["score-only", "denoiser-only", "storm"])
+	parser_.add_argument("--mode", default="storm", choices=["score-only", "denoiser-only", "storm"])
 
 	parser_.add_argument("--corrector", type=str, choices=("ald", "langevin", "none"), default="ald", help="Corrector class for the PC sampler.")
 	parser_.add_argument("--corrector-steps", type=int, default=1, help="Number of corrector steps")
 	parser_.add_argument("--snr", type=float, default=0.5, help="SNR value for (annealed) Langevin dynamics.")
 	parser_.add_argument("--N", type=int, default=50, help="Number of reverse steps")
+
+	parser_.add_argument("--n_files", type=int, default=-1, help="Number of files to test")
 
 args = parser.parse_args()
 
@@ -60,6 +62,8 @@ model.eval(no_ema=False)
 model.cuda()
 
 noisy_files = sorted(glob.glob(os.path.join(args.test_dir, "**", "*.wav"), recursive=True))
+if args.n_files > 0:
+	noisy_files = noisy_files[: args.n_files]
 
 # Loop on files
 for f in tqdm.tqdm(noisy_files):

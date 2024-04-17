@@ -11,7 +11,7 @@
 #SBATCH --mem=0                    # SLURM does not limit the memory usage, but it will block jobs from launching
 #SBATCH --gres=gpu:2        # Number of GPUs to allocate
 
-# source .environment/bin/activate
+# source ../../.venv/bin/activate
 
 pc=spgpu2
 
@@ -30,21 +30,20 @@ fi;
 base_dir=$data_dir/VCTK-Reverb
 format=reverb_vctk
 
-# srun python3 train.py \
-#     --mode denoiser-only \
-#     --base_dir $base_dir \
-#     --format $format \
-#     --num_frames 512 \
-#     --batch_size 4 \
-#     --devices 4 \
-#     --nolog
-
 srun python3 train.py \
-    --mode regen-joint-training \
-    --pretrained_denoiser /export/home/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt \
+    --mode denoiser-only \
     --base_dir $base_dir \
     --format $format \
     --num_frames 512 \
     --batch_size 4 \
-    --devices 2 \
-    --nolog
+    --devices 4
+
+# srun python3 train.py \
+#     --mode regen-joint-training \
+#     --pretrained_denoiser /export/home/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt \
+#     --base_dir $base_dir \
+#     --format $format \
+#     --num_frames 512 \
+#     --batch_size 4 \
+#     --devices 2 \
+#     --nolog
