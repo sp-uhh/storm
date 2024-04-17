@@ -36,9 +36,9 @@ srun python3 train.py \
     --num_frames 512 \
     --batch_size 4 \
     --devices 4 \
-    --resume_from_checkpoint /data1/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt
+    --resume_from_checkpoint /data1/lemercier/code/_public_repos/storm/.logs/mode=denoiser-only_sde=OUVESDE_backbone=ncsnpp_data=reverb_vctk_ch=1/version_0/checkpoints/last.ckpt
+    # --resume_from_checkpoint /data1/lemercier/code/_public_repos/storm/lightning_logs/denoiser_ncsnpp_vctk-reverb/checkpoints/epoch=89-step=234270.ckpt
 #     --nolog
-
 
 # srun python3 train.py \
 #     --mode score-only \

@@ -92,6 +92,9 @@ if __name__ == '__main__':
 	if args.resume_from_checkpoint is not None:
 		assert os.path.exists(args.resume_from_checkpoint)
 		model = model_cls.load_from_checkpoint(args.resume_from_checkpoint)
+		ckpt = torch.load(args.resume_from_checkpoint)
+		model._temp_epoch = ckpt['epoch']
+
 	else:
 		# Initialize logger, trainer, model, datamodule
 		if "regen" in temp_args.mode:
@@ -134,6 +137,8 @@ if __name__ == '__main__':
 				},
 				nolog=args.nolog
 			)
+
+		model._temp_epoch = 0
 
 	# Logging
 	if "regen" in temp_args.mode:

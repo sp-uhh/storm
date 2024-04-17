@@ -34,6 +34,8 @@ for parser_ in (base_parser, parser):
 	parser_.add_argument("--snr", type=float, default=0.5, help="SNR value for (annealed) Langevin dynamics.")
 	parser_.add_argument("--N", type=int, default=50, help="Number of reverse steps")
 
+	parser_.add_argument("--n_files", type=int, default=-1, help="Number of files to test")
+
 args = parser.parse_args()
 
 os.makedirs(args.enhanced_dir, exist_ok=True)
@@ -60,6 +62,8 @@ model.eval(no_ema=False)
 model.cuda()
 
 noisy_files = sorted(glob.glob(os.path.join(args.test_dir, "**", "*.wav"), recursive=True))
+if args.n_files > 0:
+	noisy_files = noisy_files[: args.n_files]
 
 # Loop on files
 for f in tqdm.tqdm(noisy_files):

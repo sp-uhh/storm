@@ -9,6 +9,7 @@
 #SBATCH --time=23:59:00
 #SBATCH --export=NONE 
 #SBATCH --gres=gpu:a100:4
+#SBATCH -C a100_80
 
 unset SLURM_EXPORT_ENV 
 
@@ -39,4 +40,4 @@ srun python $HOME/code/storm/train.py \
     --backbone_score ncsnpp \
     --condition both \
     --devices 4 \
-    --resume_from_checkpoint $HOME/code/storm/.logs/mode=regen-joint-training_sde=OUVESDE_score=ncsnpp_denoiser=ncsnpp_condition=both_data=reverb_vctk_ch=1/version_2/checkpoints/last.ckpt
+    --resume_from_checkpoint $HOME/code/storm/.logs/mode=regen-joint-training_sde=OUVESDE_score=ncsnpp_denoiser=ncsnpp_condition=both_data=reverb_vctk_ch=1/version_7/checkpoints/last.ckpt
