@@ -37,10 +37,6 @@ default_initializer = layers.default_init
 class NCSNpp(nn.Module):
     """NCSN++ model"""
 
-    @staticmethod
-    def add_argparse_args(parser):
-        return parser
-    
     def __init__(self, 
         scale_by_sigma = True,
         nonlinearity = 'swish',
@@ -65,11 +61,13 @@ class NCSNpp(nn.Module):
         spatial_channels = 1,
         dropout = .0,
         discriminative = False,
+        centered = True,
         **kwargs):
         super().__init__()
 
         self.act = act = get_act(nonlinearity)
         self.FORCE_STFT_OUT = False
+        self.centered = centered
 
         self.nf = nf = nf
         ch_mult = ch_mult
@@ -315,6 +313,10 @@ class NCSNpp(nn.Module):
         else:
             temb = None
 
+        if not self.centered:
+            # If input data is in [0, 1]
+            x = 2 * x - 1.
+
         # Downsampling block
         input_pyramid = None
         if self.progressive_input != 'none':
@@ -442,7 +444,13 @@ class NCSNpp(nn.Module):
         h = torch.view_as_complex(h) #b,D,F,T
         return h
 
-
+    @staticmethod
+    def add_argparse_args(parser):
+        # parser.add_argument("--no-centered", dest="centered", action="store_false", help="The data is not centered [-1, 1]")
+        # parser.add_argument("--centered", dest="centered", action="store_true", help="The data is centered [-1, 1]")
+        parser.set_defaults(centered=True)
+        return parser
+    
 
 
 
@@ -473,6 +481,9 @@ class AutoEncodeNCSNpp(nn.Module):
 
     @staticmethod
     def add_argparse_args(parser):
+        parser.add_argument("--no-centered", dest="centered", action="store_false", help="The data is not centered [-1, 1]")
+        parser.add_argument("--centered", dest="centered", action="store_true", help="The data is centered [-1, 1]")
+        parser.set_defaults(centered=True)
         return parser
     
     def __init__(self, 
@@ -499,10 +510,12 @@ class AutoEncodeNCSNpp(nn.Module):
         spatial_channels = 1,
         dropout = .0,
         discriminative = True,
+        centered = True,
         **kwargs):
         super().__init__()
         self.FORCE_STFT_OUT = False
         self.act = act = get_act(nonlinearity)
+        self.centered = centered
 
         self.nf = nf = nf
         ch_mult = ch_mult
