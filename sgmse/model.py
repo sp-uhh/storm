@@ -23,7 +23,7 @@ torch.autograd.set_detect_anomaly(True)
 
 class ScoreModel(pl.LightningModule):
     def __init__(self,
-        backbone: str = "blade", sde: str = "ouvesde",
+        backbone: str = "ncsnpp", sde: str = "ouvesde",
         lr: float = 1e-4, ema_decay: float = 0.999,
         t_eps: float = 3e-2, transform: str = 'none', nolog: bool = False,
         num_eval_files: int = 50, loss_type: str = 'mse', data_module_cls = None, **kwargs
